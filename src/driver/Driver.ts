@@ -2,6 +2,8 @@
 import cloneDeep from 'lodash/cloneDeep';
 import { ConnectionOptions } from '../source/Source';
 import { Schema } from '../Schema';
+import { Data, Result } from '../types/Result';
+import { Txn, TxnOption } from '../types/Txn';
 
 /**
  * Driver organizes TypeORM communication with specific database management system.
@@ -48,4 +50,20 @@ export abstract class Driver {
 
     
     // abstract upgrade(oldSchema: Schema): Promise<void>;
+
+
+    abstract startTransaction(option?: TxnOption): Promise<Txn>;
+
+
+    abstract commitTransaction(txn: Txn): Promise<void>;
+
+    
+    abstract rollbackTransaction(txn: Txn): Promise<void>
+
+
+    abstract create({ entity, data, txn }:{
+        entity: string,
+        data: Data,
+        txn?: Txn,
+    }): Promise<Result>;
 }

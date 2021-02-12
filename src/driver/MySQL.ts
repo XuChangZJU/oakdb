@@ -3,8 +3,12 @@ import { ConnectionOptions } from '../source/Source';
 import { DataType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
 import { Schema, Attribute, Column, Index } from '../Schema';
+import { Data, Result, Value } from '../types/Result';
+import { Txn, TxnOption } from '../types/Txn';
 import { MySQLTranslator } from '../translator/MySQLTranslator';
 import assert from 'assert';
+import { v4 } from 'uuid';
+import { assign, unset } from 'lodash';
 
 export class MySQL extends Driver {
     mysql: any;
@@ -12,6 +16,8 @@ export class MySQL extends Driver {
     debug: boolean = false;
 
     connectionPool: any;
+
+    transactions: any;
     
     readonly translator: MySQLTranslator;
 
@@ -22,6 +28,7 @@ export class MySQL extends Driver {
         this.mysql = require('mysql');
         this.addForeignKeyColumns(this.schema);
         this.translator = new MySQLTranslator(this, this.schema);
+        this.transactions = {};
     }
 
     /**
@@ -87,12 +94,27 @@ export class MySQL extends Driver {
         await this.connectionPool.end();
     }
 
-    async exec(sql: string): Promise<any> {
+    async exec(sql: string, txn?: Txn): Promise<any> {
         console.log(sql);
-        const result = await new Promise(
+        if (txn) {
+            const connection = this.transactions[txn];
+            
+            return await new Promise(
+                (resolve, reject) => {
+                    connection.query(sql, (err: Error, result: any, fields: any) => {
+                        if (err) {
+                            return reject(err);
+                        }
+    
+                        return resolve(result);
+                    })
+                }
+            );
+        }
+        return await new Promise(
             (resolve, reject) => {
                 // if (process.env.DEBUG) {
-                console.log(sql);
+                //  console.log(sql);
                 //}
                 this.connectionPool.query(sql, (err: Error, result: any, fields: any) => {
                     if (err) {
@@ -103,8 +125,6 @@ export class MySQL extends Driver {
                 })
             }
         );
-
-        return result;
     }
 
     async init(replace: boolean, excludes?: string[]): Promise<void> {
@@ -133,5 +153,99 @@ export class MySQL extends Driver {
         }
 
         return;
+    }
+
+    async startTransaction(option?: TxnOption): Promise<Txn> {
+        return await new Promise(
+            (resolve, reject) => {
+                this.connectionPool.getConnection((err: Error, connection: any) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    const { readonly, isolationLevel } = option || {};
+                    const startTxn = () => {
+                        let sql = 'START TRANSACTION';
+                        if (readonly) {
+                            sql += ' READ ONLY;';
+                        }
+                        else {
+                            sql += ';';
+                        }
+                        connection.query(sql, (err2: Error) => {
+                            if (err2) {
+                                return reject(err2);
+                            }
+
+                            const txn = v4();
+                            assign(this.transactions, {
+                                [txn]: connection,
+                            });
+
+                            return txn;
+                        });
+                    }
+                    if (isolationLevel) {
+                        connection.query(`SET TRANSACTION ISOLATION LEVEL ${isolationLevel};`, (err2: Error) => {
+                            if (err2) {
+                                return reject(err2);
+                            }
+                            startTxn();
+                        });
+                    }
+                    else {
+                        startTxn();
+                    }
+                })
+            }
+        )
+    }
+
+    async commitTransaction(txn: Txn): Promise<void> {
+        const connection = this.transactions[txn];
+
+        return await new Promise(
+            (resolve, reject) => {
+                connection.query('COMMIT;', (err: Error) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    connection.releases();
+                    unset(this.transactions, txn);
+                    resolve();
+                });
+            }
+        );
+    }
+
+
+    async rollbackTransaction(txn: Txn): Promise<void> {
+        const connection = this.transactions[txn];
+
+        return await new Promise(
+            (resolve, reject) => {
+                connection.query('ROLLBACK;', (err: Error) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    connection.releases();
+                    unset(this.transactions, txn);
+                    resolve();
+                });
+            }
+        );
+    }
+
+   
+    async create({ entity, data, txn }:{
+        entity: string,
+        data: Data,
+        txn?: Txn,
+    }): Promise<Result> {
+        const entityDef = this.schema[entity];
+        const { attributes } = entityDef;
+        
+        const sql = this.translator.translateInsertRow(entity, data);
+
+        return await this.exec(sql);
     }
 }

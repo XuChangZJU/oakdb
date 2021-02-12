@@ -2,6 +2,7 @@ import { SqlTranslator } from './SqlTranslator';
 import { SqlResult } from './translate-result/TranslateResult';
 import { DataType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
+import { Data, Value } from '../types/Result';
 
 export class MySQLTranslator extends SqlTranslator {
     static supportedDataTypes: DataType[] = [
@@ -284,4 +285,36 @@ export class MySQLTranslator extends SqlTranslator {
         
         return sql;
     }
+
+    translateAttrValue(attr: string, dataType: DataType, value: Data | Value ): string {
+        switch (dataType) {
+            case 'geometry': {
+                const { type, coordinates } = value;
+                // const type = value.type;
+                // const coordinates = value.coordinates;
+                return `ST_GeomFromText('${type}(${coordinates[0], coordinates[1]})')`;
+            }
+            case 'date': {
+                if (value instanceof Date) {
+                    return `${value.valueOf()}`;
+                }
+                else if (typeof value === 'number') {
+                    return `${value}`;
+                }
+                return value as string;
+            }
+            case 'object':
+            case 'array': {
+                return `'JSON.stringify(value)'`;
+            }
+            default: {
+                if (typeof value === 'string') {
+                    return `'${value}'`;
+                }
+                return value as string;
+            }
+        }
+    }
+
+
 }

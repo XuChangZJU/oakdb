@@ -1,6 +1,8 @@
 import { assign } from 'lodash';
 import { Index, Schema } from './Schema';
 import { Source } from './source/Source';
+import { Data, Result } from './types/Result';
+import { Txn, TxnOption } from './types/Txn';
 
 //
 import { Driver } from './driver/Driver';
@@ -113,14 +115,70 @@ export class OakDb {
     }
 
     /**
-     * 初始化schema中的对象结构
+     * 初始化对象结构
      */
     async init(replace: boolean = false, excludes?: string[]): Promise<void> {
         return await this.driver.init(replace, excludes);
     }
 
+    /**
+     * 销毁对象结构
+     * @param truncate 
+     * @param excludes 
+     */
     async destroy(truncate: boolean = false, excludes?:string[]): Promise<void> {
         return await this.driver.destroy(truncate, excludes);
     }
+
+    async startTransaction(option: TxnOption): Promise<Txn> {
+        return await this.driver.startTransaction(option);
+    }
+
+    async commitTransaction(txn: Txn): Promise<void> {
+        return await this.driver.commitTransaction(txn);
+    }
+
+    async rollbackTransaction(txn: Txn): Promise<void> {
+        return await this.driver.rollbackTransaction(txn);
+    }
+
+    /**
+     * 插入数据
+     * @param entity 对象
+     * @param data 数据
+     */
+    async create({ entity, data, txn }:{
+        entity: string,
+        data: Data,
+        txn?: Txn,
+    }): Promise<Result> {
+        const now = Date.now();
+        assign(data, {
+            $$createAt$$: now,
+            $$updateAt$$: now,
+        });
+        if (txn) {
+            // 处理插入前trigger
+        }
+        const result = this.driver.create({ entity, data, txn });
+        if (txn) {
+            // 处理插入后trigger
+        }
+
+        return result;
+    }
+
+    /**
+     * 同create
+     * @param param0 
+     */
+    async insert({ entity, data, txn }:{
+        entity: string,
+        data: Data,
+        txn?: Txn,
+    }): Promise<Result> {
+        return await this.create({ entity, data, txn });
+    }
+
 
 }

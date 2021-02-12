@@ -1,6 +1,7 @@
 import { TranslateResult } from './translate-result/TranslateResult';
 // import { Query } from '../types/Query';
 import { Projection } from '../types/Projection';
+import { Data } from '../types/Result';
 import { Schema } from '../Schema';
 import { Driver } from '../driver/Driver';
 import { DataType } from '../DataType';
@@ -61,4 +62,6 @@ export abstract class Translator {
     abstract translateCreateEntity(entity: string, options: any): TranslateResult;
 
     abstract translateDestroyEntity(entity: string, options: any): TranslateResult;
+
+    abstract translateInsertRow(entity: string, data: Data): TranslateResult;
 }
