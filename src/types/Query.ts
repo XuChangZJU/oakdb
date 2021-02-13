@@ -43,6 +43,10 @@ export interface ElementQuery {
 
 }
 
+export interface Query {
+    
+}
+
 export interface LogicQuery {
     LogicOperator: PlainQuery | LogicQuery
 }

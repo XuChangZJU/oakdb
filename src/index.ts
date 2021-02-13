@@ -7,8 +7,9 @@ import { Txn, TxnOption } from './types/Txn';
 //
 import { Driver } from './driver/Driver';
 import {MySQL as MySQLDriver } from './driver/MySQL';
+import { Warden } from './warden';
 
-export class OakDb {        
+export class OakDb extends Warden {        
     schema: Schema;
     source: Source;
     driver: Driver;
@@ -16,6 +17,7 @@ export class OakDb {
     static builtInColumnNames = ['$$createAt$$', '$$updateAt$$', '$$deleteAt$$', 'id', '$$uuid$$'];
 
     constructor(schema: Schema, source: Source) {
+        super(schema);
         this.schema = schema;
         this.source = source;
         this.addBuiltInColumns();
@@ -157,15 +159,38 @@ export class OakDb {
             $$createAt$$: now,
             $$updateAt$$: now,
         });
-        if (txn) {
+
+        const triggers = this.getTriggers({ entity, action: 'insert', data });
+        if (txn && triggers) {
             // 处理插入前trigger
+            const beforeTriggers = triggers.filter(
+                ({ before }) => before
+            );
+            if (beforeTriggers.length > 0) {
+                await this.execTriggers({
+                    triggers: beforeTriggers,
+                    data,
+                    txn,
+                });
+            }
         }
-        const result = this.driver.create({ entity, data, txn });
-        if (txn) {
+        const row = await this.driver.create({ entity, data, txn });
+        if (txn && triggers) {
             // 处理插入后trigger
+            const afterTriggers = triggers.filter(
+                ({ before }) => !before
+            );
+            if (afterTriggers.length > 0) {
+                await this.execTriggers({
+                    triggers: afterTriggers,
+                    data,
+                    row,
+                    txn,
+                });
+            }
         }
 
-        return result;
+        return row;
     }
 
     /**
