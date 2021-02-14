@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "a graceful database connector",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "mocha",
     "type-check": "tsc --noEmit",
@@ -44,6 +45,7 @@
     "guid": "0.0.12",
     "lodash": "^4.17.20",
     "mysql": "^2.18.1",
+    "sha1": "^1.1.1",
     "typeorm": "^0.2.31",
     "uuid": "^8.3.2"
   }

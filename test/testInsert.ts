@@ -11,13 +11,22 @@ describe('test insert', function() {
     it ('test insert row', async () => {
         const oakDb: OakDb = await initOakDbInstance(schemaTestCreate, mysql, true, true, undefined, true);
 
-        await oakDb.create({
-            entity: 'user',
-            data: {
-                name: 'xc',
-                born: new Date('1983-11-10'),
-            }
-        });
+        const txn = await oakDb.startTransaction();
+        try {
+            await oakDb.create({
+                entity: 'user',
+                data: {
+                    name: 'xc',
+                    born: new Date('1983-11-10'),
+                },
+                txn,
+            });
+            await oakDb.commitTransaction(txn);
+        }
+        catch (err) {
+            await oakDb.rollbackTransaction(txn);
+            throw err;
+        }
 
         await disconnectOakDbInstance(oakDb);
     })

@@ -30,7 +30,7 @@ export const schemaTestCreate: Schema = {
             }],
         }],
         config: {
-            // hasUuid: true,
+            hasUuid: true,
         },
     },
     homework: {

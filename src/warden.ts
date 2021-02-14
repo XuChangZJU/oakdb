@@ -1,12 +1,15 @@
 import { Data, Row } from './types/Result';
 import { Projection } from './types/Projection';
-import { Txn } from './types/Txn';
+import { Txn, TxnOption } from './types/Txn';
 import { Query } from './types/Query';
 import { Schema } from './Schema';
 import { ErrorCode } from './errorCode';
+import { parallel } from './utils';
 import assert from 'assert';
-import { assign } from 'lodash';
+import { assign, remove, values } from 'lodash';
 import { v4 } from 'uuid';
+import EventEmitter from 'events';
+import { threadId } from 'worker_threads';
 
 type Action = 'insert'|'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
 interface TriggerInput {
@@ -24,7 +27,7 @@ export interface Trigger {
     before?: boolean;
     valueCheck?: ({row, data}: {row?: Row, data: Data}) => true | false | 'possible';
     attributes?: string | string[];
-    fn: (TriggerInput: TriggerInput) => Promise<any>;
+    fn: (triggerInput: TriggerInput) => Promise<any>;
     triggerEntity?: string,
     triggerProjection?: Projection,
     triggerCondition?: ({row, data, txn}: {row?: Row, data: Data, txn: Txn}) => Promise<Query>;
@@ -32,11 +35,12 @@ export interface Trigger {
     volatile?: 'makeSure' | 'takeEasy';         // 如果是makesure，则会保证事务提交时，trigger至少执行一次（可能会多次），takeEasy则不能保证
 }
 
-export class Warden {
-    static builtInColumnNames = ['$$volatileUuid$$', '$$volatileData$$'];
+export abstract class Warden {
+    static builtInColumnNames = ['$$volatileTimestamp$$', '$$volatileData$$'];
 
-    private triggerActionStore: any;
-    private triggerNameStore: any;
+    private triggerActionStore: Map<string, Trigger[]>;
+    private triggerNameStore: Map<string, Trigger>;
+    private log: (message: string) => void;
     
     static ActionAlias = {
         'insert': 'insert',
@@ -48,21 +52,21 @@ export class Warden {
         'select': 'select',
     };
 
-    constructor(schema: Schema) {
+    constructor(schema: Schema, log?: (message: string) => void) {
         this.triggerActionStore = new Map();
         this.triggerNameStore = new Map();
+        this.log = log || console.log;
 
         // 为对象增加volatile需要的metadata域
         Object.keys(schema).forEach(
             entity => {
                 const { attributes } = schema[entity];
                 assign(attributes, {
-                    $$volatileUuid$$: {
-                        type: 'varchar',
-                        size: 64,
+                    $$volatileTimestamp$$: {
+                        type: 'date',
                         unique: true,
                         display: {
-                            header: 'volatileUuid',
+                            header: 'volatileTimestamp',
                         },
                     },
                     $$volatileData$$: {
@@ -76,6 +80,10 @@ export class Warden {
         );
     }
 
+    /**
+     * register one trigger
+     * @param trigger 
+     */
     registerTrigger(trigger: Trigger): void {
         const { 
             name,
@@ -84,14 +92,14 @@ export class Warden {
             before,
             volatile,
         } = trigger;
-        assert(!before && !volatile);       // 一个trigger不可能同时满足这两个吧
+        assert(!before || !volatile);       // 一个trigger不可能同时满足这两个吧
         const action2 = Warden.ActionAlias[action];
         assert(action2);
         const key = `${entity}-${action2}`;
         
         const { triggerActionStore, triggerNameStore } = this;
         if (triggerActionStore.has(key)) {
-            const triggers = triggerActionStore.get(key);
+            const triggers = triggerActionStore.get(key) as Trigger[];
             triggers.push(trigger);
         }
         else {
@@ -115,7 +123,7 @@ export class Warden {
         const key = `${entity}-${action2}`;
 
         const { triggerActionStore: triggerStore } = this;
-        const triggers:Trigger[] = triggerStore.get(key);
+        const triggers:Trigger[] | undefined = triggerStore.get(key);
         if (triggers) {
             let volatileData: any[] = [];
             const validTriggers = triggers.filter(
@@ -133,11 +141,11 @@ export class Warden {
                 }
             );
             if (volatileData.length > 0) {
-                if (row && row.$$volatileUuid$$) {
+                if (row && row.$$volatileTimestamp$$) {
                     throw ErrorCode.createError(ErrorCode.volatileTriggerUncompleted, 'volatile trigger must be completed serially');
                 }
                 assign(data, {
-                    $$volatileUuid$$: v4(),
+                    $$volatileTimestamp$$: Date.now(),
                     $$volatileData$$: volatileData,
                 });
             }
@@ -148,12 +156,252 @@ export class Warden {
         }
     }
 
+    abstract find({ entity, projection, query, indexFrom, count, forUpdate, txn}: {
+        entity: string;
+        projection?: Projection;
+        query?: Query;
+        indexFrom?: number;
+        count?: number;
+        txn?: Txn;
+        forUpdate?: boolean;
+    }): Promise<Row[]>;
+
+    abstract count({ entity, query, txn}: {
+        entity: string,
+        query?: Query,
+        txn?: Txn,
+    }): Promise<number>;
+
+    abstract findById({ entity, projection, id, txn}: {
+        entity: string;
+        projection?: Projection;
+        id: number | string;
+        txn?: Txn;
+    }): Promise<Row>;
+
+    abstract updateById({ entity, data, id, txn}: {
+        entity: string;
+        data: Data;
+        id: number | string;
+        txn?: Txn;
+    }): Promise<Row>;
+
+    abstract startTransaction(option?: TxnOption): Promise<Txn>;
+
+    abstract commitTransaction(txn: Txn): Promise<void>;
+
+    abstract rollbackTransaction(txn: Txn): Promise<void>;
+
+    private getCount(result: number | object | Array<any>) {
+        if (typeof result === 'number') {
+            return result;
+        }
+        else if (result instanceof Array) {
+            return result.length;
+        }
+        else {
+            return 1;
+        }
+    }
+    private async doTrigger({ trigger, txn, row, data }: {
+        trigger: Trigger,
+        txn: Txn,
+        row?: Row,
+        data: Data;
+    }): Promise<any> {
+        const {
+            triggerCondition,
+            triggerEntity,
+            triggerProjection,
+            fn,
+            group,
+            name,
+        } = trigger;
+        
+        const execFn = async (triggerInput: TriggerInput) => {
+            const result = await fn(triggerInput);
+            const count = this.getCount(result);
+            this.log(`trigger ${name} executed successfully, affects ${count} rows`);
+            return result;
+        };
+        if (triggerEntity) {
+            const query = triggerCondition && await triggerCondition({ row, data, txn });
+            const triggeredRows = await this.find({
+                entity: triggerEntity,
+                projection: triggerProjection,
+                query,
+            });
+            if (group) {
+                const result = await execFn({
+                    txn,
+                    row,
+                    data,
+                    triggeredRows,
+                });
+                return result;
+            }
+            else {
+                const result = await parallel(triggeredRows.map(
+                    async triggeredRow => await execFn({
+                        txn,
+                        row,
+                        data,
+                        triggeredRow,
+                    })
+                ));
+                return result;
+            }
+        }
+        else {
+            return await execFn({
+                txn,
+                row,
+                data,
+            });
+        }
+    }
+
+    private async doTriggerAgain({ trigger, row, data, txn }: {
+        trigger: Trigger,
+        row: Row,
+        data: Data,
+        txn: Txn,
+    }): Promise<any> {
+        const {
+            entity,
+            volatile,
+            name,
+        } = trigger;
+        const result = await this.doTrigger({
+            txn,
+            row,
+            data,
+            trigger,
+        });
+
+        if (volatile === 'makeSure') {
+            const { $$volatileData$$: volatileData } = row;
+
+            remove(volatileData, (vd: {
+                name: string,
+            }) => vd.name === name);
+            const updateData = {
+                $$volatileData$$: volatileData,
+            };
+            if (volatileData.length === 0) {
+                assign(updateData, {
+                    $$volatileTimestamp$$: null,
+                });
+            }
+            await this.updateById({
+                entity,
+                data: updateData,
+                id: row.id,
+                txn,
+            });
+        }
+        return result;
+    }
+
     protected async execTriggers({ triggers, row, data, txn }:{
         triggers: Trigger[],
         row?: Row,
         data: Data,
         txn: Txn,
     }):Promise<void> {
-        
+        const promises = triggers.map(
+            (trigger) => async() => {
+                const { 
+                    triggerCondition,
+                    triggerEntity,
+                    triggerProjection,
+                    volatile,
+                    fn,
+                    group,
+                    entity,
+                } = trigger;
+
+                if (volatile) {
+                    assert(row);
+                    // 挂到事务提交时再做
+                    txn.on('committed', async () => {
+                        const txn = await this.startTransaction();
+                        try {
+                            await this.doTriggerAgain({
+                                trigger,
+                                row,
+                                data,
+                                txn,
+                            });
+
+                            await this.commitTransaction(txn);
+                        }
+                        catch (err) {
+                            await this.rollbackTransaction(txn);
+                            this.log(err);
+                            throw err;
+                        }
+                    });
+                }
+                else {
+                    return await this.doTrigger({
+                        txn,
+                        trigger,
+                        row,
+                        data,
+                    });
+                }
+            }
+        );
+
+        await parallel(promises.map(p => p()));
+        return;
+    }
+
+    /**
+     * find the volatile triggers are not done properly, then do them again.
+     * @params interval: delay(millisecond) for the volatile triggers will be executed.
+     */
+    async patrol(interval: number = 60000):Promise<void> {
+        const entities = [...this.triggerNameStore.values()].filter(
+            trigger => trigger.volatile === 'makeSure',
+        ).map(
+            trigger => trigger.entity
+        );
+
+        const now = Date.now();
+        const promises = entities.map(
+            entity => async () => {
+                const txn = await this.startTransaction();
+                try {
+                    const rows = await this.find({
+                        entity,
+                        txn,
+                        projection: {
+                            id: 1,
+                            $$volatileData$$: 1,
+                        },
+                        query: {
+                            $$volatileTimestamp$$: {
+                                $lt: now - interval,
+                            },
+                        },
+                    });
+                    if (rows.length > 0) {
+                        for (let row2 of rows) {
+                            const { id, $$volatileData$$ } = row2;
+                            const { name, row, data} = $$volatileData$$;
+                            const trigger = this.triggerNameStore.get(name) as Trigger;
+                            await this.doTriggerAgain({ trigger, txn, row, data });
+                        }
+                        this.log(`complete ${rows.length} volatile triggers on ${entity} in the patrol`);
+                    }
+                } catch (err) {
+                    await this.rollbackTransaction(txn);
+                    throw err;
+                }
+            }
+        );
+        parallel(promises.map( p => p() ));
     }
 }

@@ -17,7 +17,9 @@ export class MySQL extends Driver {
 
     connectionPool: any;
 
-    transactions: any;
+    transactions: {
+        [propName: string]: Txn,
+    };
     
     readonly translator: MySQLTranslator;
 
@@ -95,9 +97,11 @@ export class MySQL extends Driver {
     }
 
     async exec(sql: string, txn?: Txn): Promise<any> {
-        console.log(sql);
+        if (process.env.NODE_ENV === 'DEV') {
+            console.log(sql);
+        }
         if (txn) {
-            const connection = this.transactions[txn];
+            const { data: connection } = txn;
             
             return await new Promise(
                 (resolve, reject) => {
@@ -107,7 +111,7 @@ export class MySQL extends Driver {
                         }
     
                         return resolve(result);
-                    })
+                    });
                 }
             );
         }
@@ -176,12 +180,13 @@ export class MySQL extends Driver {
                                 return reject(err2);
                             }
 
-                            const txn = v4();
+                            const id = v4();
+                            const txn = new Txn(id, connection);
                             assign(this.transactions, {
-                                [txn]: connection,
+                                [id]: txn,
                             });
-
-                            return txn;
+                            
+                            resolve(txn);
                         });
                     }
                     if (isolationLevel) {
@@ -201,7 +206,7 @@ export class MySQL extends Driver {
     }
 
     async commitTransaction(txn: Txn): Promise<void> {
-        const connection = this.transactions[txn];
+        const { data: connection } = txn;
 
         return await new Promise(
             (resolve, reject) => {
@@ -209,8 +214,9 @@ export class MySQL extends Driver {
                     if (err) {
                         return reject(err);
                     }
-                    connection.releases();
-                    unset(this.transactions, txn);
+                    connection.release();
+                    unset(this.transactions, txn.id);
+                    txn.emit('committed');
                     resolve();
                 });
             }
@@ -219,7 +225,7 @@ export class MySQL extends Driver {
 
 
     async rollbackTransaction(txn: Txn): Promise<void> {
-        const connection = this.transactions[txn];
+        const { data: connection } = txn;
 
         return await new Promise(
             (resolve, reject) => {
@@ -228,11 +234,17 @@ export class MySQL extends Driver {
                         return reject(err);
                     }
                     connection.releases();
-                    unset(this.transactions, txn);
+                    unset(this.transactions, txn.id);
+                    txn.emit('rollbacked');
                     resolve();
                 });
             }
         );
+    }
+
+
+    getTransactionById(id: string): Txn {
+        return this.transactions[id];
     }
 
    

@@ -1,26 +1,43 @@
-import { assign } from 'lodash';
+import { assign, pick } from 'lodash';
 import { Index, Schema } from './Schema';
 import { Source } from './source/Source';
-import { Data, Result } from './types/Result';
+import { Data, Result, Row } from './types/Result';
 import { Txn, TxnOption } from './types/Txn';
 
 //
 import { Driver } from './driver/Driver';
 import {MySQL as MySQLDriver } from './driver/MySQL';
-import { Warden } from './warden';
+import { Trigger, Warden } from './warden';
+import { Projection } from './types/Projection';
+import { Query } from './types/Query';
+import { serialUuid } from './utils';
+import { ErrorCode } from './errorCode';
 
-export class OakDb extends Warden {        
+export class OakDb extends Warden {
+    count({ entity, query, txn }: { entity: string; query?: Query | undefined; txn?: Txn | undefined; }): Promise<number> {
+        throw new Error('Method not implemented.');
+    }
+    updateById({ entity, data, id, txn }: { entity: string; data: Data; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
+        throw new Error('Method not implemented.');
+    }
+    find({ entity, projection, query, indexFrom, count, txn, forUpdate }: { entity: string; projection?: Projection | undefined; query?: Query | undefined; indexFrom?: number | undefined; count?: number | undefined; txn?: Txn | undefined; forUpdate?: boolean }): Promise<Row[]> {
+        throw new Error('Method not implemented.');
+    }
+    findById({ entity, projection, id, txn }: { entity: string; projection?: Projection | undefined; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
+        throw new Error('Method not implemented.');
+    }        
     schema: Schema;
     source: Source;
     driver: Driver;
 
     static builtInColumnNames = ['$$createAt$$', '$$updateAt$$', '$$deleteAt$$', 'id', '$$uuid$$'];
 
-    constructor(schema: Schema, source: Source) {
-        super(schema);
+    constructor(schema: Schema, source: Source, log?: (message: string) => void) {
+        super(schema, log);
         this.schema = schema;
         this.source = source;
         this.addBuiltInColumns();
+        this.createDefaultTriggers();
 
         const { name, options } = source;
         switch (name.toLowerCase()) {
@@ -105,7 +122,76 @@ export class OakDb extends Warden {
                     });
                 }
             }
-        )
+        );
+    }
+
+    createDefaultTriggers(): void {
+        const { schema } = this;
+        Object.keys(schema).forEach(
+            (entity) => {
+                let createUuid = false;
+                let checkUnique: Index[] = [];
+                const { attributes, config, indexes } = schema[entity]; 
+                if (attributes.hasOwnProperty('$$uuid$$')) {
+                    createUuid = true;
+                }
+                if (indexes) {
+                    indexes.forEach(
+                        (index) => {
+                            if (index.unique) {
+                                checkUnique.push(index);
+                            }
+                        }
+                    );
+                }
+                if (createUuid || checkUnique.length > 0) {
+                    // create before trigger for insert action
+                    let name = `create default values for ${entity}, includes`;
+                    if (createUuid) {
+                        name += ' uuid,';
+                    }
+                    if (checkUnique.length > 0) {
+                        checkUnique.forEach(
+                            (index) => {
+                                name += ` index 【${index.name}】,`;
+                            }
+                        );
+                    }
+                    name = name.slice(0, name.length - 1);
+                    name += '.';
+
+                    const trigger: Trigger = {
+                        name,
+                        entity,
+                        action: 'insert',
+                        before: true,
+                        fn: async ({ data, txn }: {
+                            data: Data,
+                            txn?: Txn,
+                        }): Promise<number> => {
+                            let result = 0;
+                            if (createUuid && !data.$$uuid$$) {
+                                assign(data, {
+                                    $$uuid$$: serialUuid(64),
+                                });
+                                result = result + 1;
+                            }
+                            for (let index of checkUnique) {
+                                const { columns } = index;
+                                const query = pick(data, Object.keys(columns));
+                                const count = await this.count({ entity, query, txn });
+                                if (count > 0) {
+                                    throw ErrorCode.createError(ErrorCode.uniqueConstraintViolated, `unique constraint violated on ${Object.keys(columns).join(',')} of entity ${entity}`);
+                                }
+                                result = result + 1;
+                            }
+                            return result;
+                        },
+                    };
+                    this.registerTrigger(trigger);
+                }
+            }
+        );
     }
 
     async connect(): Promise<void> {
@@ -132,7 +218,7 @@ export class OakDb extends Warden {
         return await this.driver.destroy(truncate, excludes);
     }
 
-    async startTransaction(option: TxnOption): Promise<Txn> {
+    async startTransaction(option?: TxnOption): Promise<Txn> {
         return await this.driver.startTransaction(option);
     }
 

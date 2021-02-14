@@ -1,10 +1,5 @@
-const array = [3, 4, 5];
+import { serialUuid } from '../src/utils';
 
-const array2 = array.map(
-    async (ele) => {
-        const r = await ele * 2;
-        return r;
-    }
-);
-
-console.log(array2.join(','));
+/* for (let iter = 0; iter < 10; iter ++) {
+    console.log(serialUuid(32));
+} */

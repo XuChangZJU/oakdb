@@ -61,6 +61,9 @@ export abstract class Driver {
     abstract rollbackTransaction(txn: Txn): Promise<void>
 
 
+    abstract getTransactionById(id: string): Txn
+
+
     abstract create({ entity, data, txn }:{
         entity: string,
         data: Data,
