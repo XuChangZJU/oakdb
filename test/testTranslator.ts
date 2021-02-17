@@ -31,7 +31,7 @@ describe('test select', function() {
         console.log(sql);
     });
 
-    it ('translate fnCall', async () => {
+    it ('translate fnCall in projection', async () => {
         const sql = sqlTranslator.translateSelect({
             entity: 'userShop',
             projection: {

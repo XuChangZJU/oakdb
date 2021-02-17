@@ -1,4 +1,4 @@
-import util from 'util';
+import util, { log } from 'util';
 import { Translator } from './Translator';
 import { Data, Value } from '../types/Result';
 import { DataType } from '../DataType';
@@ -323,6 +323,38 @@ export abstract class SqlTranslator extends Translator {
         };
 
         return translateInner(entity, projection, './');
+    }
+
+    translateWhere(entity: string, query: Query, aliasDict: {
+        [propName: string]: string;
+    }): string {
+        const { schema } = this;
+
+        const translateInner = (entity2: string, query2: Query, path: string): string => {
+            const alias = aliasDict[path];
+            const { attributes } = schema[entity2];
+            let whereText = 'where ';
+            Object.keys(query).forEach(
+                (attr) => {
+                    if (LogicOperators.includes(attr)) {
+                        const logicQueries = query[attr] as LogicQuery[] | PlainQuery[];
+                        logicQueries.forEach(
+                            (lg: LogicQuery | PlainQuery, index: number) => {
+                                whereText += `${translateInner(entity2, lg, path)} `;
+                                if (index < logicQueries.length - 1) {
+                                    whereText += attr.slice(1);
+                                }
+                            }
+                        );
+                    }
+                    else if ()
+                }
+            );
+
+            return whereText;
+        };
+
+        return translateInner(entity, query, './');
     }
 
     translateSelect({ entity, projection, query, indexFrom, count, sort, forUpdate }: {
