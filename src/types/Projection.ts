@@ -1,9 +1,4 @@
-import { ComparisonOperator, FormatOperator } from './Operator';
-
+import { FnCall } from './Query';
 export interface Projection {
-    [attrName: string]: 1 | string | {
-        $format: string;
-        $arguments?: string[];
-        $as?: string;
-    } | Projection;
+    [attrName: string]: 1 | string | FnCall | Projection;
 }

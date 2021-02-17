@@ -5,8 +5,7 @@ export type ComparisonOperator = '$eq'
     | '$lte'
     | '$ne'
     | '$in'
-    | '$nin'
-    | '$exists';
+    | '$nin';
 
 
 export type LogicOperator = '$and'
@@ -38,3 +37,50 @@ export type FormatOperator = '$format'
 export type FnCallOperator = '$fnCall';
 
 export const FnCallPrefix = '$fnCall';
+
+export const LogicOperators: string [] = [
+    '$and',
+    '$nor',
+    '$not',
+    '$or',
+];
+
+export const ComparisonOperators: string[] = [
+    '$eq',
+    '$gt',
+    '$gte',
+    '$lt',
+    '$lte',
+    '$ne',
+    '$in',
+    '$nin',
+];
+
+export const ElementOperators: string[] = [
+    '$exists',
+];
+
+export const EvaluationOperators: string[] = [
+    '$expr',
+    '$text',
+];
+
+export const SpatialOperators: string[] = [
+    '$geoIntersects',
+    '$geoWithin',
+    '$near',
+    '$nearSphere',
+    '$box',
+    '$center',
+    '$centerSphere',
+    '$geometry',
+    '$maxDistance',
+    '$minDistance',
+    '$polygon',
+];
+
+export const FormatOperators: string[] = [
+    '$format',
+    '$arguments',
+    '$as',
+];

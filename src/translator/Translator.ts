@@ -3,17 +3,15 @@ import { TranslateResult } from './translate-result/TranslateResult';
 import { Projection } from '../types/Projection';
 import { Data } from '../types/Result';
 import { Schema } from '../Schema';
-import { Driver } from '../driver/Driver';
 import { DataType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
+import { Query } from '../types/Query';
 
 export abstract class Translator {
     readonly schema: Schema;
-    readonly driver: Driver;
 
-    constructor(driver: Driver, schema: Schema) {
+    constructor(schema: Schema) {
         this.schema = schema;
-        this.driver = driver;
     }
     /**
      * Gets list of supported column data types by a driver.
@@ -64,4 +62,13 @@ export abstract class Translator {
     abstract translateDestroyEntity(entity: string, options: any): TranslateResult;
 
     abstract translateInsertRow(entity: string, data: Data): TranslateResult;
+
+    abstract translateSelect({ entity, projection, query, indexFrom, count, forUpdate }: {
+        entity: string;
+        projection?: Projection | undefined;
+        query?: Query | undefined;
+        indexFrom?: number | undefined;
+        count?: number | undefined;
+        forUpdate?: boolean | undefined;
+    }): TranslateResult;
 }

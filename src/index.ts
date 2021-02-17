@@ -12,6 +12,7 @@ import { Projection } from './types/Projection';
 import { Query } from './types/Query';
 import { serialUuid } from './utils';
 import { ErrorCode } from './errorCode';
+import { Sort } from './types/Sort';
 
 export class OakDb extends Warden {
     count({ entity, query, txn }: { entity: string; query?: Query | undefined; txn?: Txn | undefined; }): Promise<number> {
@@ -20,8 +21,26 @@ export class OakDb extends Warden {
     updateById({ entity, data, id, txn }: { entity: string; data: Data; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
         throw new Error('Method not implemented.');
     }
-    find({ entity, projection, query, indexFrom, count, txn, forUpdate }: { entity: string; projection?: Projection | undefined; query?: Query | undefined; indexFrom?: number | undefined; count?: number | undefined; txn?: Txn | undefined; forUpdate?: boolean }): Promise<Row[]> {
-        throw new Error('Method not implemented.');
+    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: { 
+        entity: string;
+        projection?: Projection;
+        query?: Query;
+        indexFrom?: number;
+        count?: number;
+        txn?: Txn;
+        forUpdate?: boolean,
+        sort?: Sort,
+    }): Promise<Row[]> {
+        return await this.driver.find({
+            entity,
+            projection,
+            query,
+            indexFrom,
+            count,
+            txn,
+            forUpdate,
+            sort,
+        });
     }
     findById({ entity, projection, id, txn }: { entity: string; projection?: Projection | undefined; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
         throw new Error('Method not implemented.');

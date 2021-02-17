@@ -34,7 +34,7 @@ export const schemaTestCreate: Schema = {
         },
     },
     homework: {
-        title: '帐户',
+        title: '作业',
         attributes: {
             title: {
                 type: 'varchar',
@@ -101,5 +101,24 @@ export const schemaTestCreate: Schema = {
                 type: 'spatial',
             },
         }],
+    },
+    userShop: {
+        title: '用户商店连接',
+        attributes: {
+            user: {
+                type: 'ref',
+                ref: 'user',
+                display: {
+                    header: '用户',
+                },
+            },
+            shop: {
+                type: 'ref',
+                ref: 'shop',
+                display: {
+                    header: '商店',
+                },
+            },
+        },
     },
 };

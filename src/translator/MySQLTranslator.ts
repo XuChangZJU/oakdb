@@ -189,7 +189,7 @@ export class MySQLTranslator extends SqlTranslator {
     translateCreateEntity(entity: string, 
         { replace = false, }: { replace: boolean }
         ): SqlResult {
-        const { schema, driver } = this;
+        const { schema } = this;
         const entityDef = schema[entity];
 
         let sql = !replace ? 'create table if not exists ' : 'create table ';
@@ -305,7 +305,7 @@ export class MySQLTranslator extends SqlTranslator {
             }
             case 'object':
             case 'array': {
-                return `'JSON.stringify(value)'`;
+                return `'${JSON.stringify(value)}'`;
             }
             default: {
                 if (typeof value === 'string') {

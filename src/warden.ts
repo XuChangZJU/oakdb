@@ -6,7 +6,7 @@ import { Schema } from './Schema';
 import { ErrorCode } from './errorCode';
 import { parallel } from './utils';
 import assert from 'assert';
-import { assign, remove, values } from 'lodash';
+import { assign, cloneDeep, remove, values } from 'lodash';
 import { v4 } from 'uuid';
 import EventEmitter from 'events';
 import { threadId } from 'worker_threads';
@@ -133,8 +133,8 @@ export abstract class Warden {
                     if (checkResult === true && volatile === 'makeSure') {
                         volatileData.push({
                             name: name,
-                            data,
-                            row,                            
+                            data: cloneDeep(data),
+                            row: cloneDeep(row),
                         });
                     }
                     return checkResult;
@@ -402,6 +402,6 @@ export abstract class Warden {
                 }
             }
         );
-        parallel(promises.map( p => p() ));
+        await parallel(promises.map( p => p() ));
     }
 }

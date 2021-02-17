@@ -2,8 +2,11 @@
 import cloneDeep from 'lodash/cloneDeep';
 import { ConnectionOptions } from '../source/Source';
 import { Schema } from '../Schema';
-import { Data, Result } from '../types/Result';
+import { Data, Result, Row } from '../types/Result';
 import { Txn, TxnOption } from '../types/Txn';
+import { Projection } from '../types/Projection';
+import { Query } from '../types/Query';
+import { Sort } from '../types/Sort';
 
 /**
  * Driver organizes TypeORM communication with specific database management system.
@@ -69,4 +72,15 @@ export abstract class Driver {
         data: Data,
         txn?: Txn,
     }): Promise<Result>;
+
+    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: { 
+        entity: string; 
+        projection?: Projection | undefined; 
+        query?: Query | undefined; 
+        indexFrom?: number | undefined; 
+        count?: number | undefined; 
+        txn?: Txn | undefined; 
+        forUpdate?: boolean;
+        sort?: Sort;
+    }): Promise<Row[]>;
 }

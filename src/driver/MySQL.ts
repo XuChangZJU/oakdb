@@ -3,12 +3,16 @@ import { ConnectionOptions } from '../source/Source';
 import { DataType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
 import { Schema, Attribute, Column, Index } from '../Schema';
-import { Data, Result, Value } from '../types/Result';
+import { Data, Result, Row, Value } from '../types/Result';
 import { Txn, TxnOption } from '../types/Txn';
 import { MySQLTranslator } from '../translator/MySQLTranslator';
 import assert from 'assert';
 import { v4 } from 'uuid';
 import { assign, unset } from 'lodash';
+import { promises } from 'fs';
+import { Projection } from '../types/Projection';
+import { Query } from '../types/Query';
+import { Sort } from '../types/Sort';
 
 export class MySQL extends Driver {
     mysql: any;
@@ -29,7 +33,7 @@ export class MySQL extends Driver {
         this.database = database;
         this.mysql = require('mysql');
         this.addForeignKeyColumns(this.schema);
-        this.translator = new MySQLTranslator(this, this.schema);
+        this.translator = new MySQLTranslator(this.schema);
         this.transactions = {};
     }
 
@@ -97,7 +101,8 @@ export class MySQL extends Driver {
     }
 
     async exec(sql: string, txn?: Txn): Promise<any> {
-        if (process.env.NODE_ENV === 'DEV') {
+        const { NODE_ENV } = process.env;
+        if (NODE_ENV && NODE_ENV.toLowerCase() === 'dev') {
             console.log(sql);
         }
         if (txn) {
@@ -233,7 +238,7 @@ export class MySQL extends Driver {
                     if (err) {
                         return reject(err);
                     }
-                    connection.releases();
+                    connection.release();
                     unset(this.transactions, txn.id);
                     txn.emit('rollbacked');
                     resolve();
@@ -252,12 +257,32 @@ export class MySQL extends Driver {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Result> {
-        const entityDef = this.schema[entity];
-        const { attributes } = entityDef;
-        
+    }): Promise<Result> {        
         const sql = this.translator.translateInsertRow(entity, data);
 
         return await this.exec(sql);
+    }
+    
+    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
+        entity: string;
+        projection?: Projection;
+        query?: Query;
+        indexFrom?: number;
+        count?: number;
+        txn?: Txn;
+        sort?: Sort;
+        forUpdate?: boolean;
+    }): Promise<Row[]> {
+        const sql = this.translator.translateSelect({
+            entity,
+            projection,
+            query,
+            indexFrom,
+            count,
+            sort,
+            forUpdate,
+        });
+
+        return [{ id: 1 }];
     }
 }
