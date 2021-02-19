@@ -618,7 +618,7 @@ export abstract class SqlTranslator extends Translator {
             }
         }
 
-        if (indexFrom) {
+        if (typeof indexFrom === 'number') {
             assert(count);
             sql += this.translateIndexFromCount(indexFrom, count as number);
         }

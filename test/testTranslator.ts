@@ -232,6 +232,44 @@ describe('test select', function() {
         console.log(sql);
     });
 
+    it('indexFrom & forUpdate', async () => {
+        const sql = sqlTranslator.translateSelect({
+            entity: 'homework',
+            projection: {
+                id: 1,
+            },
+            query: {
+                $or: [{
+                    title: {
+                        $like: 'aaa%',
+                    },
+                    user: {
+                        $fnCall238: {
+                            $format: 'HOUR(FROM_UNIXTIME(%s)) = 13',
+                            $attrs: ['born'],
+                        }
+                    },
+                },{
+                    $and: [{
+                        $text: {
+                            $search: 'ttt',
+                        },
+                    },{
+                        user: {
+                            id: {
+                                $exists: true,
+                            },
+                        },
+                    }],
+                }],
+            },
+            indexFrom: 0,
+            count: 100,
+            forUpdate: true,
+        });
+        console.log(sql);
+    });
+
     after(async () => {
         await disconnectOakDbInstance(oakDb);
     });
