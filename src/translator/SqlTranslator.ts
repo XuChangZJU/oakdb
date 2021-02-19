@@ -25,6 +25,10 @@ export abstract class SqlTranslator extends Translator {
 
     abstract translateFullTextSearch(value: FullTextSearchQuery, entity: string, alias: string): string;
 
+    abstract translateIndexFromCount(indexFrom: number, count: number): string;
+
+    abstract translateForUpdate(): string;
+
     translateInsertRow(entity: string, data: Data): string {
         const { schema } = this;
         const { attributes, storageName = entity } = schema[entity];
@@ -612,6 +616,15 @@ export abstract class SqlTranslator extends Translator {
             if (sortText) {
                 sql += ` order by ${sortText}`;
             }
+        }
+
+        if (indexFrom) {
+            assert(count);
+            sql += this.translateIndexFromCount(indexFrom, count as number);
+        }
+
+        if (forUpdate) {
+            sql += this.translateForUpdate();
         }
 
         return sql;

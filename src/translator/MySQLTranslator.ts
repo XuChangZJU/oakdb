@@ -338,6 +338,14 @@ export class MySQLTranslator extends SqlTranslator {
         const columns2 = columns.map(
             ({ name }) => `${alias}.${name}`
         );
-        return `match(${columns2.join(',')}) against ('${$search}' in natural language mode)`;
+        return ` match(${columns2.join(',')}) against ('${$search}' in natural language mode)`;
+    }
+
+    translateIndexFromCount(indexFrom: number, count: number): string {
+        return ` limit ${indexFrom}, ${count}`;
+    }
+
+    translateForUpdate(): string {
+        return ' for update';
     }
 }

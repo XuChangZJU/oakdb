@@ -283,6 +283,6 @@ export class MySQL extends Driver {
             forUpdate,
         });
 
-        return [{ id: 1 }];
+        return await this.exec(sql);
     }
 }
