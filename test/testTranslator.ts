@@ -270,7 +270,46 @@ describe('test select', function() {
         console.log(sql);
     });
 
+    it('group by', async () => {
+        const sql = sqlTranslator.translateSelect({
+            entity: 'homework',
+            projection: {
+                $fnCall1: {
+                    $format: 'count(%s)',
+                    $attrs: ['id'],
+                    $as: 'cnt',
+                },
+                $fnCall2: {
+                    $format:　'avg(%s)',
+                    $attrs: ['mark'],
+                    $as: 'avg',
+                },
+                user: {
+                    name: '$$username',
+                },
+            },
+            query: {
+                $text: {
+                    $search: 'bbb',
+                },
+                user: {
+                    name: {
+                        $like: 'yang%',
+                    },
+                },
+            },
+            groupBy: {
+                user: {
+                    name: 1,
+                },
+            },
+        });
+        console.log(sql);
+    });
+
     after(async () => {
-        await disconnectOakDbInstance(oakDb);
+        if (oakDb) {
+            await disconnectOakDbInstance(oakDb);
+        }
     });
 });

@@ -13,6 +13,7 @@ import { Query } from './types/Query';
 import { serialUuid } from './utils';
 import { ErrorCode } from './errorCode';
 import { Sort } from './types/Sort';
+import { GroupBy } from './types/GroupBy';
 
 export class OakDb extends Warden {
     count({ entity, query, txn }: { entity: string; query?: Query | undefined; txn?: Txn | undefined; }): Promise<number> {
@@ -21,15 +22,16 @@ export class OakDb extends Warden {
     updateById({ entity, data, id, txn }: { entity: string; data: Data; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
         throw new Error('Method not implemented.');
     }
-    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: { 
+    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: { 
         entity: string;
         projection?: Projection;
         query?: Query;
         indexFrom?: number;
         count?: number;
         txn?: Txn;
-        forUpdate?: boolean,
-        sort?: Sort,
+        forUpdate?: boolean;
+        sort?: Sort;
+        groupBy?: GroupBy;
     }): Promise<Row[]> {
         return await this.driver.find({
             entity,
@@ -40,6 +42,7 @@ export class OakDb extends Warden {
             txn,
             forUpdate,
             sort,
+            groupBy,
         });
     }
     findById({ entity, projection, id, txn }: { entity: string; projection?: Projection | undefined; id: string | number; txn?: Txn | undefined; }): Promise<Row> {

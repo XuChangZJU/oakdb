@@ -6,6 +6,7 @@ import { Schema } from '../Schema';
 import { DataType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
 import { Query } from '../types/Query';
+import { GroupBy } from '../types/GroupBy';
 
 export abstract class Translator {
     readonly schema: Schema;
@@ -63,12 +64,13 @@ export abstract class Translator {
 
     abstract translateInsertRow(entity: string, data: Data): TranslateResult;
 
-    abstract translateSelect({ entity, projection, query, indexFrom, count, forUpdate }: {
+    abstract translateSelect({ entity, projection, query, indexFrom, count, forUpdate, groupBy }: {
         entity: string;
         projection?: Projection | undefined;
         query?: Query | undefined;
         indexFrom?: number | undefined;
         count?: number | undefined;
         forUpdate?: boolean | undefined;
+        groupBy?: GroupBy;
     }): TranslateResult;
 }

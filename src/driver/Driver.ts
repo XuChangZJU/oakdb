@@ -7,6 +7,7 @@ import { Txn, TxnOption } from '../types/Txn';
 import { Projection } from '../types/Projection';
 import { Query } from '../types/Query';
 import { Sort } from '../types/Sort';
+import { GroupBy } from '../types/GroupBy';
 
 /**
  * Driver organizes TypeORM communication with specific database management system.
@@ -73,7 +74,7 @@ export abstract class Driver {
         txn?: Txn,
     }): Promise<Result>;
 
-    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: { 
+    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: { 
         entity: string; 
         projection?: Projection | undefined; 
         query?: Query | undefined; 
@@ -82,5 +83,6 @@ export abstract class Driver {
         txn?: Txn | undefined; 
         forUpdate?: boolean;
         sort?: Sort;
+        groupBy?: GroupBy;
     }): Promise<Row[]>;
 }

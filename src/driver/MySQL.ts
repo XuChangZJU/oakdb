@@ -13,6 +13,7 @@ import { promises } from 'fs';
 import { Projection } from '../types/Projection';
 import { Query } from '../types/Query';
 import { Sort } from '../types/Sort';
+import { GroupBy } from '../types/GroupBy';
 
 export class MySQL extends Driver {
     mysql: any;
@@ -263,7 +264,7 @@ export class MySQL extends Driver {
         return await this.exec(sql);
     }
     
-    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
+    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -272,6 +273,7 @@ export class MySQL extends Driver {
         txn?: Txn;
         sort?: Sort;
         forUpdate?: boolean;
+        groupBy?: GroupBy;
     }): Promise<Row[]> {
         const sql = this.translator.translateSelect({
             entity,
@@ -281,8 +283,9 @@ export class MySQL extends Driver {
             count,
             sort,
             forUpdate,
+            groupBy,
         });
 
-        return await this.exec(sql);
+        return await this.exec(sql, txn);
     }
 }

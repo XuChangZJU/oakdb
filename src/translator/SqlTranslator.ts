@@ -10,6 +10,7 @@ import { assign, merge } from 'lodash';
 import { Sort, SortAttr, SortNode } from '../types/Sort';
 import { assert } from 'console';
 import { ErrorCode } from '../errorCode';
+import { GroupBy } from '../types/GroupBy';
 
 export abstract class SqlTranslator extends Translator {
     translateDestroyEntity(entity: string, truncate?: boolean):string {
@@ -447,7 +448,12 @@ export abstract class SqlTranslator extends Translator {
                         }
                         else {
                             assert(typeof projection2[attr] === 'string');
-                            projText += ` \`${alias}\`.\`${attr}\` as \`${prefix}${projection2[attr]}\``;
+                            if ((projection2[attr] as string).startsWith('$$')) {
+                                projText += ` \`${alias}\`.\`${attr}\` as \`${(projection2[attr] as string).slice(2)}\``;
+                            }
+                            else {
+                                projText += ` \`${alias}\`.\`${attr}\` as \`${prefix}${projection2[attr]}\``;
+                            }
                         }
                     }
                     if (idx < Object.keys(projection2).length - 1) {
@@ -460,6 +466,38 @@ export abstract class SqlTranslator extends Translator {
         };
 
         return translateInner(entity, projection, './');
+    }
+
+    translateGroupBy(entity: string, groupBy: GroupBy, aliasDict: {
+        [propName: string]: string;
+    }): string {
+        const { schema } = this;
+        
+        const translateInner = (entity2: string, groupBy2: GroupBy, path: string): string => {
+            const alias = aliasDict[path];
+            const { attributes } = schema[entity2];
+            let groupByText = '';
+
+            Object.keys(groupBy2).forEach(
+                (attr, idx) => {
+                    const { type, ref } = attributes[attr];
+                        if (type === 'ref') {
+                            groupByText += translateInner(ref as string, groupBy2[attr] as GroupBy, `${path}${attr}/`);
+                        }
+                        else {
+                            assert (groupBy2[attr] === 1);
+                            groupByText += ` \`${alias}\`.\`${attr}\``;
+                        }
+                    if (idx < Object.keys(groupBy2).length - 1) {
+                        groupByText += ',';
+                    }
+                }
+            );
+
+            return groupByText;
+        };
+
+        return translateInner(entity, groupBy, './');
     }
 
     translateWhere(entity: string, query: Query, aliasDict: {
@@ -582,7 +620,7 @@ export abstract class SqlTranslator extends Translator {
         return sortText;
     }
 
-    translateSelect({ entity, projection, query, indexFrom, count, sort, forUpdate }: {
+    translateSelect({ entity, projection, query, indexFrom, count, sort, forUpdate, groupBy }: {
         entity: string;
         projection?: Projection | undefined;
         query?: Query | undefined;
@@ -590,6 +628,7 @@ export abstract class SqlTranslator extends Translator {
         count?: number | undefined;
         forUpdate?: boolean | undefined;
         sort?: Sort;
+        groupBy?: GroupBy;
     }): TranslateResult {
         const projection2 = projection || this.getDefaultProjection(entity);
         if (sort){
@@ -625,6 +664,11 @@ export abstract class SqlTranslator extends Translator {
 
         if (forUpdate) {
             sql += this.translateForUpdate();
+        }
+
+        if (groupBy) {
+            assert(!indexFrom && !count && !forUpdate);
+            sql += ` group by ${this.translateGroupBy(entity, groupBy, aliasDict)}`;
         }
 
         return sql;

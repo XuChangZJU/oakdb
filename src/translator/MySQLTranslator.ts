@@ -168,11 +168,17 @@ export class MySQLTranslator extends SqlTranslator {
         if (MySQLTranslator.withPrecisionDataTypes.includes(type)) {
             if (params) {
                 const { precision, scale } = params;
-                return `${type}(${precision}, ${scale}) `;
+                if (typeof scale === 'number') {
+                    return `${type}(${precision}, ${scale}) `;
+                }
+                return `${type}(${precision})`;
             }
             else {
                 const { precision, scale } = MySQLTranslator.dataTypeDefaults[type as string];
-                return `${type}(${precision}, ${scale}) `;
+                if (typeof scale === 'number') {
+                    return `${type}(${precision}, ${scale}) `;
+                }
+                return `${type}(${precision})`;
             }
         }
 

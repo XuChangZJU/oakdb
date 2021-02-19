@@ -52,6 +52,12 @@ export const schemaTestCreate: Schema = {
                     header: '内容',
                 },
             },
+            mark: {
+                type: 'float',
+                display: {
+                    header: '打分',
+                },
+            },
             user: {
                 type: 'ref',
                 ref: 'user',
