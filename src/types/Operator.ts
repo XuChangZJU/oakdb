@@ -4,19 +4,22 @@ export type ComparisonOperator = '$eq'
     | '$lt'
     | '$lte'
     | '$ne'
-    | '$in'
-    | '$nin';
+    | '$like';
 
 
 export type LogicOperator = '$and'
     | '$or'
     | '$not'
-    | '$nor';
+    | '$nor'
+    | '$xor';
 
 export type ElementOperator = '$exists';
 
 export type EvaluationOperator = '$text'
-    | '$expr';
+    | '$expr'
+    | '$in'
+    | '$nin'
+    | '$between';
 
 export type SpatialOperator = '$geoIntersects' 
     | '$geoWithin' 
@@ -43,6 +46,7 @@ export const LogicOperators: string [] = [
     '$nor',
     '$not',
     '$or',
+    '$xor',
 ];
 
 export const ComparisonOperators: string[] = [
@@ -52,8 +56,7 @@ export const ComparisonOperators: string[] = [
     '$lt',
     '$lte',
     '$ne',
-    '$in',
-    '$nin',
+    '$like',
 ];
 
 export const ElementOperators: string[] = [
@@ -63,6 +66,9 @@ export const ElementOperators: string[] = [
 export const EvaluationOperators: string[] = [
     '$expr',
     '$text',
+    '$in',
+    '$nin',
+    '$between',
 ];
 
 export const SpatialOperators: string[] = [

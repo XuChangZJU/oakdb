@@ -3,6 +3,7 @@ import { Schema } from '../../src/Schema';
 export const schemaTestCreate: Schema = {
     user: {
         title: '用户',
+        storageName: 'userrr',
         attributes: {
             name: {
                 type: 'varchar',
@@ -68,6 +69,7 @@ export const schemaTestCreate: Schema = {
             }],
             config: {
                 type: 'fulltext',
+                parser: 'ngram',
             },
         }],
     },

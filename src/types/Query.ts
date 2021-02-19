@@ -8,7 +8,7 @@ import {
 } from '../types/Operator';
 
 // 单个属性的取值
-export type PrimitiveValue = string | number | boolean;
+export type PrimitiveValue = string | number | boolean | object;
 
 // 单个属性带比较算子取值
 export type SingleAttrQuery = PrimitiveValue | PrimitiveValue [] | {
@@ -23,6 +23,7 @@ export interface FnCall {
     $format: string,
     $attrs?: string[];
     $as?: string;
+    $omitPrefix?: boolean;
 };
 
 export interface FullTextSearchQuery {

@@ -1,5 +1,7 @@
+import { FnCall } from "./Query";
+
 export interface SortAttr {
-    [attrName : string]: 1 | string | SortAttr,
+    [attrName: string]: 1 | string | SortAttr | FnCall,
 };
 
 export interface SortNode {

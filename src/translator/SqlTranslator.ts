@@ -1,16 +1,15 @@
-import util, { log } from 'util';
+import util from 'util';
 import { Translator } from './Translator';
 import { Data, Value } from '../types/Result';
 import { DataType } from '../DataType';
 import { Projection } from '../types/Projection';
-import { FnCall, LogicQuery, PlainQuery, Query } from '../types/Query';
-import { LogicOperator, LogicOperators } from '../types/Operator';
+import { FnCall, FullTextSearchQuery, LogicQuery, PlainQuery, PrimitiveValue, Query } from '../types/Query';
+import { ComparisonOperator, ComparisonOperators, ElementOperator, ElementOperators, EvaluationOperator, EvaluationOperators, LogicOperator, LogicOperators, SpatialOperators } from '../types/Operator';
 import { TranslateResult } from './translate-result/TranslateResult';
-import { assign } from 'lodash';
-import { stringify } from 'uuid';
-import { Sort, SortAttr } from '../types/Sort';
+import { assign, merge } from 'lodash';
+import { Sort, SortAttr, SortNode } from '../types/Sort';
 import { assert } from 'console';
-import { Alias } from 'typeorm/query-builder/Alias';
+import { ErrorCode } from '../errorCode';
 
 export abstract class SqlTranslator extends Translator {
     translateDestroyEntity(entity: string, truncate?: boolean):string {
@@ -22,7 +21,9 @@ export abstract class SqlTranslator extends Translator {
         return sql;
     }
 
-    abstract translateAttrValue(attr: string, dataType: DataType, value: Value | Data ): string;
+    abstract translateAttrValue(dataType: DataType, value: Value | Data ): string;
+
+    abstract translateFullTextSearch(value: FullTextSearchQuery, entity: string, alias: string): string;
 
     translateInsertRow(entity: string, data: Data): string {
         const { schema } = this;
@@ -46,7 +47,7 @@ export abstract class SqlTranslator extends Translator {
             (attr, idx) => {
                 const attrDef = attributes[attr];
                 const { type: dataType } = attrDef;
-                const value = this.translateAttrValue(attr, dataType as DataType, data[attr] as Value);
+                const value = this.translateAttrValue(dataType as DataType, data[attr] as Value);
                 sql += value;
                 if (idx < attrs.length - 1) {
                     sql += ',';
@@ -138,8 +139,7 @@ export abstract class SqlTranslator extends Translator {
                             assign(aliasDict, {
                                 [pathAttr]: alias2,
                             });
-                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\`
-                                 on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
+                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
                         }
                         else {
                             alias2 = aliasDict[pathAttr];
@@ -176,10 +176,7 @@ export abstract class SqlTranslator extends Translator {
                              })
                         );
                     }
-                    else if (!attributes.hasOwnProperty(op) && !op.startsWith('$')) {
-                        // in/exists算子， todo
-                    }
-                    else if (attributes[op].type === 'ref') {
+                    else if (attributes[op] && attributes[op].type === 'ref') {
                         const { ref } = attributes[op];
                         const pathAttr = `${path}${op}/`;
                         let alias2;
@@ -188,8 +185,7 @@ export abstract class SqlTranslator extends Translator {
                             assign(aliasDict, {
                                 [pathAttr]: alias2,
                             });
-                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\`
-                                 on \`${alias}\`.\`${op}Id\` = \`${alias2}\`.\`id\``;
+                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${op}Id\` = \`${alias2}\`.\`id\``;
                         }
                         else {
                             alias2 = aliasDict[pathAttr];
@@ -215,13 +211,13 @@ export abstract class SqlTranslator extends Translator {
 
         const analyzeSortNode = ({ attr, node, path, entityName, alias }: {
             attr: string;
-            node: 1 | string | SortAttr;
+            node: 1 | SortAttr | string | FnCall;
             path: string;
             entityName: string;
             alias: string;
         }): void => {
             const { attributes } = schema[entityName];
-            if (typeof node === 'object' && (attributes[attr].type === 'ref')) {
+            if (typeof node === 'object' && attributes[attr] && (attributes[attr].type === 'ref')) {
                 const { ref } = attributes[attr];
                 const pathAttr = `${path}${attr}/`;
                 let alias2;
@@ -230,8 +226,7 @@ export abstract class SqlTranslator extends Translator {
                     assign(aliasDict, {
                         [pathAttr]: alias2,
                     });
-                    from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\`
-                         on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
+                    from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
                 }
                 else {
                     alias2 = aliasDict[pathAttr];
@@ -239,7 +234,7 @@ export abstract class SqlTranslator extends Translator {
                 const nodeAttr = Object.keys(node)[0];
                 analyzeSortNode({
                     attr: nodeAttr,
-                    node: node[nodeAttr],
+                    node: (node as SortAttr)[nodeAttr],
                     path: pathAttr,
                     entityName: ref as string,
                     alias: alias2,
@@ -249,9 +244,11 @@ export abstract class SqlTranslator extends Translator {
         if (sort) {
             sort.forEach(
                 (sortNode) => {
-                    const sortAttr = sortNode.$attr;
-                    const attr = Object.keys(sortAttr)[0];
-                    analyzeSortNode({ attr, node: sortAttr[attr], path: './', entityName: entity, alias });
+                    const { $attr } = sortNode;
+                    if (typeof $attr !== 'string') {
+                        const attr = Object.keys($attr)[0];
+                        analyzeSortNode({ attr, node: $attr[attr], path: './', entityName: entity, alias });
+                    }
                 }
             );
         }
@@ -262,12 +259,8 @@ export abstract class SqlTranslator extends Translator {
         };
     }
 
-    tranlateFnCall(fnCall: FnCall, alias: string, prefix?: string): string {
-        const { $format, $attrs, $as }: {
-            $format: string,
-            $attrs?: string[],
-            $as?: string,
-        } = fnCall;
+    private translateFnCall(fnCall: FnCall, alias: string, prefix?: string): string {
+        const { $format, $attrs, $as, $omitPrefix } = fnCall;
 
         let result = '';
         const attrs = $attrs ? $attrs.map(
@@ -278,10 +271,150 @@ export abstract class SqlTranslator extends Translator {
         const args = [$format].concat(attrs);
         result += ` ${util.format.apply(null, args)}`;
         if ($as) {
-            result += ` as ${prefix}${$as}`;
+            if ($omitPrefix) {
+                result += ` as ${$as}`;
+            }
+            else {
+                result += ` as \`${prefix}${$as}\``;
+            }
         }
 
         return result;
+    }
+
+    private translateComparison(attr: ComparisonOperator, value: PrimitiveValue, type: DataType): string {
+        const SQL_OP: {
+            [op: string]: string,
+        } = {
+            $gt: '>',
+            $lt: '<',
+            $gte: '>=',
+            $lte: '<=',
+            $eq: '=',
+            $ne: '<>',
+            $like: 'like',
+        };
+
+        return ` ${SQL_OP[attr]} ${this.translateAttrValue(type, value)}`;
+    }
+
+    private translateElement(attr: ElementOperator, value: boolean): string {
+        assert(attr === '$exists');      // only support one operator now
+        if (value) {
+            return ' is not null';
+        }
+        return ' is null';
+    }
+
+    private translateEvaluation(attr: EvaluationOperator ,value: any, entity: string, alias: string, type: DataType): string {
+        switch(attr) {
+            case '$text': {
+                // fulltext search
+                return this.translateFullTextSearch(value as FullTextSearchQuery, entity, alias);
+            }
+            case '$in':
+            case '$nin': {
+                const IN_OP = {
+                    $in: 'in',
+                    $nin: 'not in',
+                };
+                if (value instanceof Array) {
+                    const values = value.map(
+                        (v: PrimitiveValue) => {
+                            if (['varchar', 'char', 'text', 'nvarchar'].includes(type as string)) {
+                                return `'${v}'`;
+                            }
+                            else {
+                                return `${v}`;
+                            }
+                        }
+                    );
+                    return ` ${IN_OP[attr]}(${values.join(',')})`;
+                }
+                else {
+                    // sub query
+                    return ` ${IN_OP[attr]}(${this.translateSelect(value)})`;
+                }
+            }
+            case '$between': {
+                const values = value.map(
+                    (v: PrimitiveValue) => {
+                        if (['varchar', 'char', 'text', 'nvarchar'].includes(type as string)) {
+                            return `'${v}'`;
+                        }
+                        else {
+                            return `${v}`;
+                        }
+                    }
+                );
+                return ` between ${values[0]} and ${values[1]}`;
+            }
+            default: {
+                assert(false);
+                return '';
+            }
+        }
+    }
+
+    /**
+     * check the attribute in sort exists in projection
+     * @param entity 
+     * @param projection 
+     * @param sort 
+     */
+    private checkSortWithProjection(entity: string, projection: Projection, sort: Sort) {
+        const merged = {};
+        sort.forEach(
+            ({ $attr }) => merge(merged, $attr)            
+        );
+        const { schema } = this;
+
+        const checkInProjection = (sortNode: SortAttr, projectionNode: Projection, entity: string, path: string) => {
+            const { attributes } = schema[entity];
+            const attrs = Object.keys(sortNode);
+            attrs.forEach(
+                (attr) => {
+                    if (attr.toLocaleLowerCase().startsWith('$fncall')) {
+                        return;
+                    }
+                    if (attributes.hasOwnProperty(attr)) {
+                        if (!projectionNode.hasOwnProperty(attr)) {
+                            throw ErrorCode.createError(ErrorCode.sortAttrUnexisted, `sort attribute ${path}/${attr} unexisted in projection`, {
+                                path,
+                                attr,
+                            });
+                        }
+                        if (attributes[attr].type === 'ref') {
+                            checkInProjection(sortNode[attr] as SortAttr, projectionNode[attr] as Projection, attributes[attr].ref as string, `${path}${attr}/`);
+                        }                        
+                    }
+                    else {
+                        // there must exist one homonymous 'as' in function call.
+                        const fnCalls = Object.keys(projectionNode).filter(
+                            (pAttr) => pAttr.toLowerCase().startsWith('$fncall')
+                        );
+
+                        const asS = fnCalls.map(
+                            (fnCall) => (projectionNode[fnCall] as FnCall).$as
+                        );
+                        const asS2 = asS.concat((Object.keys(projectionNode).filter(
+                            k => typeof projectionNode[k] === 'string'
+                        )).map(
+                            k => projectionNode[k as string]
+                        ) as string[]);
+
+                        if (!asS2.includes(attr)) {
+                            throw ErrorCode.createError(ErrorCode.sortAttrUnexisted, `sort attribute ${path}${attr} unexisted in projection`, {
+                                path,
+                                attr,
+                            });
+                        }
+                    }
+                }
+            );
+        };
+
+        checkInProjection(merged, projection, entity, './');
     }
 
     translateProjection(entity: string, projection: Projection, aliasDict: {
@@ -298,7 +431,7 @@ export abstract class SqlTranslator extends Translator {
                 (attr, idx) => {
                     if (attr.toLowerCase().startsWith('$fncall')) {
                         // functionCall
-                        projText += this.tranlateFnCall(projection2[attr] as FnCall, alias, prefix);
+                        projText += this.translateFnCall(projection2[attr] as FnCall, alias, prefix);
                     }
                     else {
                         const { type, ref } = attributes[attr];
@@ -306,11 +439,11 @@ export abstract class SqlTranslator extends Translator {
                             projText += translateInner(ref as string, projection2[attr] as Projection, `${path}${attr}/`);
                         }
                         else if (projection2[attr] === 1){
-                            projText += ` \`${alias}\`.\`${attr}\` as ${prefix}${attr}`;
+                            projText += ` \`${alias}\`.\`${attr}\` as \`${prefix}${attr}\``;
                         }
                         else {
                             assert(typeof projection2[attr] === 'string');
-                            projText += ` \`${alias}\`.\`${attr}\` as ${prefix}${projection2[attr]}`;
+                            projText += ` \`${alias}\`.\`${attr}\` as \`${prefix}${projection2[attr]}\``;
                         }
                     }
                     if (idx < Object.keys(projection2).length - 1) {
@@ -330,24 +463,73 @@ export abstract class SqlTranslator extends Translator {
     }): string {
         const { schema } = this;
 
-        const translateInner = (entity2: string, query2: Query, path: string): string => {
+        const translateInner = (entity2: string, query2: Query, path: string, type?: DataType): string => {
             const alias = aliasDict[path];
             const { attributes } = schema[entity2];
-            let whereText = 'where ';
-            Object.keys(query).forEach(
-                (attr) => {
+            let whereText = '';
+            Object.keys(query2).forEach(
+                (attr, idx) => {
                     if (LogicOperators.includes(attr)) {
-                        const logicQueries = query[attr] as LogicQuery[] | PlainQuery[];
-                        logicQueries.forEach(
-                            (lg: LogicQuery | PlainQuery, index: number) => {
-                                whereText += `${translateInner(entity2, lg, path)} `;
-                                if (index < logicQueries.length - 1) {
-                                    whereText += attr.slice(1);
-                                }
+                        let result = '';
+                        switch(attr as LogicOperator) {
+                            case '$and':
+                            case '$or':
+                            case '$xor': {
+                                const logicQueries = query2[attr] as LogicQuery[] | PlainQuery[];
+                                logicQueries.forEach(
+                                    (lg: LogicQuery | PlainQuery, index: number) => {
+                                        whereText += ` (${translateInner(entity2, lg, path)})`;
+                                        if (index < logicQueries.length - 1) {
+                                            whereText += ` ${attr.slice(1)}`;
+                                        }
+                                    }
+                                );
+                                break;
                             }
-                        );
+                            case '$not': {
+                                const logicQuery = query2[attr] as LogicQuery | PlainQuery;
+                                whereText += ` not (${translateInner(entity2, logicQuery, path)})`;
+                                break;
+                            }
+                            default: {
+                                assert(false);
+                                return '';
+                            }
+                        }                        
                     }
-                    else if ()
+                    else if (attr.toLowerCase().startsWith('$fncall')) {
+                        // functionCall
+                        whereText += ` (${this.translateFnCall(query2[attr] as FnCall, alias)})`;
+                    }
+                    else if (ComparisonOperators.includes(attr)) {
+                        whereText += this.translateComparison(attr as ComparisonOperator, query2[attr] as PrimitiveValue, type as DataType);
+                    }
+                    else if (ElementOperators.includes(attr)) {
+                        whereText += this.translateElement(attr as ElementOperator, query2[attr] as boolean);
+                    }
+                    else if (EvaluationOperators.includes(attr)) {
+                        whereText += this.translateEvaluation(attr as EvaluationOperator, query2[attr], entity2, alias, type as DataType);
+                    }
+                    else if (SpatialOperators.includes(attr)) {
+                        throw new Error('暂不支持的算子');
+                    }
+                    else {
+                        assert (attributes.hasOwnProperty(attr));
+                        const { type: type2, ref } = attributes[attr];
+                        if (type2 === 'ref') {
+                            whereText += ` ${translateInner(ref as string, query2[attr] as Query, `${path}${ref}/`)}`;
+                        }
+                        else if (typeof query2[attr] === 'object'){
+                            whereText += ` \`${alias}\`.\`${attr}\` ${translateInner(entity2, query2[attr] as PlainQuery, path, type2)}`
+                        }
+                        else {
+                            whereText += ` \`${alias}\`.\`${attr}\` = ${this.translateAttrValue(type2, query2[attr])}`;
+                        }
+                    }
+
+                    if (idx < Object.keys(query2).length - 1) {
+                        whereText +=' and'
+                    }
                 }
             );
 
@@ -355,6 +537,45 @@ export abstract class SqlTranslator extends Translator {
         };
 
         return translateInner(entity, query, './');
+    }
+
+    translateSort(entity: string, sort: Sort, aliasDict: {
+        [propName: string]: string;
+    }): string {
+        const { schema } = this;
+        const translateInner = (entity2: string, sortAttr: SortAttr, path: string): string => {
+            const attr = Object.keys(sortAttr)[0];
+            const alias = aliasDict[path];
+            const { attributes } = schema[entity2];
+            let prefix = path.slice(2).replace('/', '.');
+
+            if (attr.toLocaleLowerCase().startsWith('$fncall')) {
+                return this.translateFnCall(sortAttr[attr] as FnCall, alias, prefix);
+            }
+            else if (sortAttr[attr] === 1) {
+                return ` \`${prefix}${attr}\``;
+            }
+            else {
+                const { ref, type } = attributes[attr];
+                assert(type === 'ref');
+                return translateInner(ref as string, sortAttr[attr] as SortAttr, `${path}${attr}/`);
+            }
+        };
+
+        let sortText = '';
+        sort.forEach(
+            (sortNode, index) => {
+                const { $attr, $direction } = sortNode;
+                sortText += translateInner(entity, $attr, './');
+                sortText += ` ${$direction}`;
+
+                if (index < sort.length - 1) {
+                    sortText += ',';
+                }
+            }
+        );
+
+        return sortText;
     }
 
     translateSelect({ entity, projection, query, indexFrom, count, sort, forUpdate }: {
@@ -367,6 +588,9 @@ export abstract class SqlTranslator extends Translator {
         sort?: Sort;
     }): TranslateResult {
         const projection2 = projection || this.getDefaultProjection(entity);
+        if (sort){
+            this.checkSortWithProjection(entity, projection2, sort);
+        }
 
         const { from: fromText, aliasDict } = this.analyzeJoin({
             entity,
@@ -377,7 +601,18 @@ export abstract class SqlTranslator extends Translator {
 
         const projText = this.translateProjection(entity, projection2, aliasDict);
 
-        const sql = `select ${projText} from ${fromText}`;
+        let sql = `select ${projText} from ${fromText}`;
+        
+        if (query) {
+            sql += ` where ${this.translateWhere(entity, query, aliasDict)}`;
+        }
+        
+        if (sort) {
+            const sortText = this.translateSort(entity, sort, aliasDict);
+            if (sortText) {
+                sql += ` order by ${sortText}`;
+            }
+        }
 
         return sql;
     }

@@ -3,6 +3,9 @@ import { SqlResult } from './translate-result/TranslateResult';
 import { DataType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
 import { Data, Value } from '../types/Result';
+import { FullTextSearchQuery } from '../types/Query';
+import { Index } from '../Schema';
+import assert from 'assert';
 
 export class MySQLTranslator extends SqlTranslator {
     static supportedDataTypes: DataType[] = [
@@ -286,12 +289,16 @@ export class MySQLTranslator extends SqlTranslator {
         return sql;
     }
 
-    translateAttrValue(attr: string, dataType: DataType, value: Data | Value ): string {
+    translateAttrValue(dataType: DataType, value: Data | Value ): string {
+        if (value === null) {
+            return 'null';
+        }
         switch (dataType) {
             case 'geometry': {
                 const { type, coordinates } = value;
                 // const type = value.type;
                 // const coordinates = value.coordinates;
+                // 目前只支持point
                 return `ST_GeomFromText('${type}(${coordinates[0], coordinates[1]})')`;
             }
             case 'date': {
@@ -316,5 +323,21 @@ export class MySQLTranslator extends SqlTranslator {
         }
     }
 
+    translateFullTextSearch(value: FullTextSearchQuery, entity: string, alias: string): string {
+        const { $search } = value;
+        const { indexes } = this.schema[entity];
 
+        const ftIndex = indexes && indexes.find(
+            (ele: Index) => {
+                const { config } = ele;
+                return config && config.type === 'fulltext';
+            }
+        );
+        assert(ftIndex);
+        const { columns } = ftIndex as Index;
+        const columns2 = columns.map(
+            ({ name }) => `${alias}.${name}`
+        );
+        return `match(${columns2.join(',')}) against ('${$search}' in natural language mode)`;
+    }
 }
