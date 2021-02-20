@@ -101,15 +101,76 @@ export class MySQL extends Driver {
         await this.connectionPool.end();
     }
 
-    async exec(sql: string, txn?: Txn): Promise<any> {
+    unfoldResult(result: Row | Row[]): Row | Row[] {
+        function resolveAttribute(r: {
+            [propName: string]: any;
+        }, attr: string, value: any) {
+            const i = attr.indexOf(".");
+            if (i !== -1) {
+                const attrHead = attr.slice(0, i);
+                const attrTail = attr.slice(i + 1);
+                if (!r[attrHead]) {
+                    r[attrHead] = {};
+                }
+
+                resolveAttribute(r[attrHead], attrTail, value);
+            }
+            else {
+                r[attr] = value;
+            }
+        }
+
+
+        function formalizeNullObject(r: {
+            [propName: string]: any;
+        }) {
+            let allowFormalize = true;
+            for (let attr in r) {
+                if (typeof r[attr] === 'object') {
+                    if (formalizeNullObject(r[attr])) {
+                        r[attr] = null;
+                    }
+                    else {
+                        allowFormalize = false;
+                    }
+                }
+                else if (r[attr] !== null) {
+                    allowFormalize = false;
+                }
+            }
+
+            return allowFormalize;
+        }
+
+        function unfoldRow(r: Row): Row {
+            let result2 = {};
+            for (let attr in r) {
+                const value = r[attr];
+                resolveAttribute(result2, attr, value);
+            }
+    
+            formalizeNullObject(result2);
+            return result2 as Row;
+        }
+
+        if (result instanceof Array) {
+            return result.map(
+                r => unfoldRow(r)
+            );
+        }
+        return unfoldRow(result);
+    }
+
+    async exec(sql: string, txn?: Txn): Promise<Row | Row[]> {
         const { NODE_ENV } = process.env;
         if (NODE_ENV && NODE_ENV.toLowerCase() === 'dev') {
             console.log(sql);
         }
+        let result: Row | Row[];
         if (txn) {
             const { data: connection } = txn;
             
-            return await new Promise(
+            result = await new Promise(
                 (resolve, reject) => {
                     connection.query(sql, (err: Error, result: any, fields: any) => {
                         if (err) {
@@ -121,20 +182,24 @@ export class MySQL extends Driver {
                 }
             );
         }
-        return await new Promise(
-            (resolve, reject) => {
-                // if (process.env.DEBUG) {
-                //  console.log(sql);
-                //}
-                this.connectionPool.query(sql, (err: Error, result: any, fields: any) => {
-                    if (err) {
-                        return reject(err);
-                    }
+        else {
+            result = await new Promise(
+                (resolve, reject) => {
+                    // if (process.env.DEBUG) {
+                    //  console.log(sql);
+                    //}
+                    this.connectionPool.query(sql, (err: Error, result: any, fields: any) => {
+                        if (err) {
+                            return reject(err);
+                        }
+    
+                        return resolve(result);
+                    })
+                }
+            );
+        }
 
-                    return resolve(result);
-                })
-            }
-        );
+        return result;
     }
 
     async init(replace: boolean, excludes?: string[]): Promise<void> {
@@ -261,7 +326,7 @@ export class MySQL extends Driver {
     }): Promise<Result> {        
         const sql = this.translator.translateInsertRow(entity, data);
 
-        return await this.exec(sql);
+        return await this.exec(sql) as Row;
     }
     
     async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
@@ -286,6 +351,6 @@ export class MySQL extends Driver {
             groupBy,
         });
 
-        return await this.exec(sql, txn);
+        return await this.exec(sql, txn) as Row[];
     }
 }

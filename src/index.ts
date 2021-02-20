@@ -1,4 +1,4 @@
-import { assign, pick } from 'lodash';
+import { assign, cloneDeep, pick } from 'lodash';
 import { Index, Schema } from './Schema';
 import { Source } from './source/Source';
 import { Data, Result, Row } from './types/Result';
@@ -55,8 +55,9 @@ export class OakDb extends Warden {
     static builtInColumnNames = ['$$createAt$$', '$$updateAt$$', '$$deleteAt$$', 'id', '$$uuid$$'];
 
     constructor(schema: Schema, source: Source, log?: (message: string) => void) {
-        super(schema, log);
-        this.schema = schema;
+        const schema2 = cloneDeep(schema);
+        super(schema2, log);
+        this.schema = schema2;
         this.source = source;
         this.addBuiltInColumns();
         this.createDefaultTriggers();
@@ -64,7 +65,7 @@ export class OakDb extends Warden {
         const { name, options } = source;
         switch (name.toLowerCase()) {
             case 'mysql': {
-                this.driver = new MySQLDriver(options, schema);
+                this.driver = new MySQLDriver(options, schema2);
                 break;
             }
             default: {
