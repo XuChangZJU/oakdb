@@ -1,4 +1,4 @@
-import { assign, cloneDeep, pick } from 'lodash';
+import { add, assign, cloneDeep, pick } from 'lodash';
 import { Index, Schema } from './Schema';
 import { Source } from './source/Source';
 import { Data, Result, Row } from './types/Result';
@@ -9,11 +9,12 @@ import { Driver } from './driver/Driver';
 import {MySQL as MySQLDriver } from './driver/MySQL';
 import { Trigger, Warden } from './warden';
 import { Projection } from './types/Projection';
-import { Query } from './types/Query';
+import { LogicQuery, PlainQuery, Query } from './types/Query';
 import { serialUuid } from './utils';
 import { ErrorCode } from './errorCode';
 import { Sort } from './types/Sort';
 import { GroupBy } from './types/GroupBy';
+import { LogicOperators } from './types/Operator';
 
 export class OakDb extends Warden {
     count({ entity, query, txn }: { entity: string; query?: Query | undefined; txn?: Txn | undefined; }): Promise<number> {
@@ -22,32 +23,6 @@ export class OakDb extends Warden {
     updateById({ entity, data, id, txn }: { entity: string; data: Data; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
         throw new Error('Method not implemented.');
     }
-    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: { 
-        entity: string;
-        projection?: Projection;
-        query?: Query;
-        indexFrom?: number;
-        count?: number;
-        txn?: Txn;
-        forUpdate?: boolean;
-        sort?: Sort;
-        groupBy?: GroupBy;
-    }): Promise<Row[]> {
-        return await this.driver.find({
-            entity,
-            projection,
-            query,
-            indexFrom,
-            count,
-            txn,
-            forUpdate,
-            sort,
-            groupBy,
-        });
-    }
-    findById({ entity, projection, id, txn }: { entity: string; projection?: Projection | undefined; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
-        throw new Error('Method not implemented.');
-    }        
     schema: Schema;
     source: Source;
     driver: Driver;
@@ -314,5 +289,92 @@ export class OakDb extends Warden {
         return await this.create({ entity, data, txn });
     }
 
+    addDeleteAtColumnCheck(query: Query, entity: string): void {
+        const { attributes } = this.schema[entity];
+        let added = false;
+        Object.keys(query).forEach(
+            (attr) => {
+                if (LogicOperators.includes(attr)) {
+                    if (query[attr] instanceof Array) {
+                        (query[attr] as PlainQuery[] | LogicQuery[]).forEach(
+                            (subQuery) => this.addDeleteAtColumnCheck(subQuery, entity)
+                        );
+                    }
+                    else {
+                        this.addDeleteAtColumnCheck(query[attr] as Query, entity);
+                    }
+                }
+                else {
+                    if (!added) {
+                        assign(query, {
+                            $$deleteAt$$: {
+                                $exists: false,
+                            },
+                        }),
+                        added = true;
+                    }
+                    if (attributes.hasOwnProperty(attr)) {
+                        const { type, ref } = attributes[attr];
+                        if (type === 'ref') {
+                            this.addDeleteAtColumnCheck(query[attr] as PlainQuery | LogicQuery, ref as string);
+                        }
+                    }
+                }
+            }
+        );
+    }
 
+    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: { 
+        entity: string;
+        projection?: Projection;
+        query?: Query;
+        indexFrom?: number;
+        count?: number;
+        txn?: Txn;
+        forUpdate?: boolean;
+        sort?: Sort;
+        groupBy?: GroupBy;
+    }): Promise<Row[]> {
+        const { attributes } = this.schema[entity];
+        let query2 = query;
+        if (attributes.hasOwnProperty('$$deleteAt$$')) {
+            if (query2) {
+                this.addDeleteAtColumnCheck(query2, entity);
+            }
+            else {
+                query2 = {
+                    $$deleteAt$$: {
+                        $exists: false,
+                    },
+                };
+            }
+        }        
+        return await this.driver.find({
+            entity,
+            projection,
+            query: query2,
+            indexFrom,
+            count,
+            txn,
+            forUpdate,
+            sort,
+            groupBy,
+        });
+    }
+    async findById({ entity, projection, id, txn }: {
+        entity: string;
+        projection?: Projection;
+        id: string | number;
+        txn?: Txn;
+    }): Promise<Row> {
+        const [ result ] = await this.driver.find({
+            entity,
+            projection,
+            query: { id },
+            indexFrom: 0,
+            count: 1,
+            txn,
+        });
+        return result;
+    }
 }

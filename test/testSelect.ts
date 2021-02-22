@@ -112,6 +112,15 @@ describe('test select', function() {
         console.log(homeworks);
     });
 
+    it ('test select by id', async () => {
+        const homework = await oakDb.findById({
+            entity: 'homework',
+            id: 1,
+        });
+
+        console.log(homework);
+    });
+
     it ('test select geo', async () => {
         const shops = await oakDb.find({
             entity: 'shop',
