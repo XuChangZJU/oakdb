@@ -62,7 +62,7 @@ export abstract class Translator {
 
     abstract translateDestroyEntity(entity: string, options: any): TranslateResult;
 
-    abstract translateInsertRow(entity: string, data: Data): TranslateResult;
+    abstract translateInsertRow(entity: string, data: Data[]): TranslateResult;
 
     abstract translateSelect({ entity, projection, query, indexFrom, count, forUpdate, groupBy }: {
         entity: string;
@@ -72,5 +72,12 @@ export abstract class Translator {
         count?: number | undefined;
         forUpdate?: boolean | undefined;
         groupBy?: GroupBy;
+    }): TranslateResult;
+
+    abstract translateUpdate({ entity, data, id, query }: {
+        entity: string;
+        data: Data;
+        id?: string | number;
+        query?: Query;
     }): TranslateResult;
 }

@@ -1,4 +1,4 @@
-import { add, assign, cloneDeep, pick } from 'lodash';
+import { add, assign, cloneDeep, now, pick } from 'lodash';
 import { Index, Schema } from './Schema';
 import { Source } from './source/Source';
 import { Data, Result, Row } from './types/Result';
@@ -15,13 +15,105 @@ import { ErrorCode } from './errorCode';
 import { Sort } from './types/Sort';
 import { GroupBy } from './types/GroupBy';
 import { LogicOperators } from './types/Operator';
+import { assert } from 'console';
 
 export class OakDb extends Warden {
+    remove({ entity, id, txn }: { entity: string; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
+        throw new Error('Method not implemented.');
+    }
     count({ entity, query, txn }: { entity: string; query?: Query | undefined; txn?: Txn | undefined; }): Promise<number> {
         throw new Error('Method not implemented.');
     }
-    updateById({ entity, data, id, txn }: { entity: string; data: Data; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
-        throw new Error('Method not implemented.');
+
+    private async preUpdate(entity: string, data: Data, id?: string|number, row?:Row, txn?: Txn): Promise<Row | undefined> {
+        const now = Date.now();
+        assign(data, {
+            $$updateAt$$: now,
+        });
+
+        let row2: Row | undefined;
+        if (txn) {
+            const possibleTriggers = this.getTriggers({ entity, action: 'update', data, row });
+            if (possibleTriggers) {
+                let beforeTriggers = possibleTriggers.filter(
+                    ({ before }) => before
+                );
+                if (beforeTriggers.length > 0) {
+                    if (!row) {
+                        row2 = await this.findById({ entity, id: id as string|number, txn });
+                        beforeTriggers = beforeTriggers.filter(
+                            (trigger) => !trigger.valueCheck || trigger.valueCheck({ row: row2, data })
+                        );
+                    }
+                    await this.execTriggers({
+                        triggers: beforeTriggers,
+                        data,
+                        row: row || row2,
+                        txn,
+                    });
+                }
+            }
+        }
+
+        return row2;
+    }
+
+    private async postUpdate(entity: string, data: Data, row:Row, txn?: Txn): Promise<void>  {
+        if (txn) {
+            const Triggers = this.getTriggers({ entity, action: 'update', data, row });
+            if (Triggers) {
+                let afterTriggers = Triggers.filter(
+                    ({ before }) => !before
+                );
+                if (afterTriggers.length > 0) {
+                    await this.execTriggers({
+                        triggers: afterTriggers,
+                        data,
+                        row,
+                        txn,
+                    });
+                }
+            }
+        }
+    }
+
+    async update({ entity, data, id, row, txn }: {
+        entity: string;
+        data: Data;
+        id?: string | number;
+        row?: Row;
+        txn?: Txn;
+    }): Promise<Row> {
+        assert(id || row);
+        const row2 = await this.preUpdate(entity, data, id, row, txn);
+        
+        const result = await this.driver.updateById({
+            entity,
+            data,
+            id: id || (row as Row).id,
+            txn,
+        });
+
+        const rowNow = assign({}, row || row2, data);
+        await this.postUpdate(entity, data, rowNow as Row, txn);        
+        return result;
+    }
+
+    async updateMany({ entity, data, query, txn }: {
+        entity: string;
+        data: Data;
+        query?: Query;
+        txn?: Txn;
+    }): Promise<void> {
+        assign(data, {
+            $$updateAt$$: Date.now(),
+        });
+        await this.driver.updateByCondition({
+            entity,
+            data,
+            query,
+            txn,
+        });
     }
     schema: Schema;
     source: Source;
@@ -228,6 +320,51 @@ export class OakDb extends Warden {
         return await this.driver.rollbackTransaction(txn);
     }
 
+    private async preInsert(entity: string, data: Data, txn?: Txn) {
+        const now = Date.now();
+        assign(data, {
+            $$createAt$$: now,
+            $$updateAt$$: now,
+        });
+
+        if (txn) {
+            const triggers = this.getTriggers({ entity, action: 'insert', data });
+            if (triggers) {
+                // 处理插入前trigger
+                const beforeTriggers = triggers.filter(
+                    ({ before }) => before
+                );
+                if (beforeTriggers.length > 0) {
+                    await this.execTriggers({
+                        triggers: beforeTriggers,
+                        data,
+                        txn,
+                    });
+                }
+            }
+        }
+    }
+
+    private async postInsert(entity: string, data: Data, row: Row, txn?: Txn) {
+        if (txn) {
+            const triggers = this.getTriggers({ entity, action: 'insert', data });
+            if (triggers) {
+                // 处理插入后trigger
+                const afterTriggers = triggers.filter(
+                    ({ before }) => !before
+                );
+                if (afterTriggers.length > 0) {
+                    await this.execTriggers({
+                        triggers: afterTriggers,
+                        data,
+                        row,
+                        txn,
+                    });
+                }
+            }
+        }
+    }
+
     /**
      * 插入数据
      * @param entity 对象
@@ -237,44 +374,36 @@ export class OakDb extends Warden {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Result> {
-        const now = Date.now();
-        assign(data, {
-            $$createAt$$: now,
-            $$updateAt$$: now,
-        });
-
-        const triggers = this.getTriggers({ entity, action: 'insert', data });
-        if (txn && triggers) {
-            // 处理插入前trigger
-            const beforeTriggers = triggers.filter(
-                ({ before }) => before
-            );
-            if (beforeTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: beforeTriggers,
-                    data,
-                    txn,
-                });
-            }
-        }
-        const row = await this.driver.create({ entity, data, txn });
-        if (txn && triggers) {
-            // 处理插入后trigger
-            const afterTriggers = triggers.filter(
-                ({ before }) => !before
-            );
-            if (afterTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: afterTriggers,
-                    data,
-                    row,
-                    txn,
-                });
-            }
-        }
+    }): Promise<Row> {
+        await this.preInsert(entity, data, txn);
+        const row = await this.driver.create({ entity, data, txn });       
+        await this.postInsert(entity, data, row, txn);
 
         return row;
+    }
+
+    async createMany({ entity, data, txn }:{
+        entity: string,
+        data: Data[],
+        txn?: Txn,
+    }, batch?: boolean): Promise<Row[]> {
+        if (batch) {
+            for (let d of data) {
+                await this.preInsert(entity, d, txn);
+            }
+            const rows = await this.driver.createMany({ entity, data, txn });
+            let idx = 0;
+            for (let r of rows) {
+                await this.postInsert(entity, data[idx ++], r, txn);
+            }
+            return rows;
+        }
+
+        const result: Row[] = [];
+        for (let d of data) {
+            result.push(await this.create({ entity, data: d, txn }));
+        }
+        return result;
     }
 
     /**
@@ -285,8 +414,16 @@ export class OakDb extends Warden {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Result> {
+    }): Promise<Row> {
         return await this.create({ entity, data, txn });
+    }
+
+    async insertMany({ entity, data, txn }:{
+        entity: string,
+        data: Data[],
+        txn?: Txn,
+    }, batch?: boolean): Promise<Row[]> {
+        return this.createMany({ entity, data, txn }, batch);
     }
 
     addDeleteAtColumnCheck(query: Query, entity: string): void {

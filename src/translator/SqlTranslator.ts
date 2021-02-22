@@ -32,36 +32,44 @@ export abstract class SqlTranslator extends Translator {
 
     abstract translateForUpdate(): string;
 
-    translateInsertRow(entity: string, data: Data): string {
+    translateInsertRow(entity: string, data: Data[]): string {
         const { schema } = this;
         const { attributes, storageName = entity } = schema[entity];
         
         let sql = `insert into ${storageName}(`;
 
-        const attrs = Object.keys(data);
+        const attrs = Object.keys(data[0]);
         attrs.forEach(
             (attr, idx) => {
                 sql += ` ${attr}`;
-                if (idx < Object.keys(data).length - 1) {
+                if (idx < Object.keys(data[0]).length - 1) {
                     sql += ',';
                 }
             }
         );
 
-        sql += ') values (';
+        sql += ') values ';
 
-        attrs.forEach(
-            (attr, idx) => {
-                const attrDef = attributes[attr];
-                const { type: dataType } = attrDef;
-                const value = this.translateAttrValue(dataType as DataType, data[attr] as Value);
-                sql += value;
-                if (idx < attrs.length - 1) {
+        data.forEach(
+            (d, dataIndex) => {
+                sql += '(';
+                attrs.forEach(
+                    (attr, attrIdx) => {
+                        const attrDef = attributes[attr];
+                        const { type: dataType } = attrDef;
+                        const value = this.translateAttrValue(dataType as DataType, d[attr] as Value);
+                        sql += value;
+                        if (attrIdx < attrs.length - 1) {
+                            sql += ',';
+                        }
+                    }
+                );
+                sql += ')';
+                if (dataIndex < data.length - 1) {
                     sql += ',';
                 }
             }
         );
-        sql += ');';
 
         return sql;
     }
@@ -671,6 +679,48 @@ export abstract class SqlTranslator extends Translator {
         if (groupBy) {
             assert(!indexFrom && !count && !forUpdate);
             sql += ` group by ${this.translateGroupBy(entity, groupBy, aliasDict)}`;
+        }
+
+        return sql;
+    }
+
+    /**
+     * update table t1 set t1.a1 = v1 where (id = 1)/(t1.a2 = v2);
+     * @param param0 
+     */
+    translateUpdate({ entity, data, id, query }: {
+        entity: string;
+        data: Data;
+        id?: string | number;
+        query?: Query;
+    }): string {
+        const { schema } = this;
+        const { attributes, storageName = entity } = schema[entity];
+
+        let sql = `update ${storageName} ${entity} set`;
+        const attrs = Object.keys(data);
+
+        attrs.forEach(
+            (attr, attrIdx) => {
+                const attrDef = attributes[attr];
+                const { type: dataType } = attrDef;
+                const value = this.translateAttrValue(dataType as DataType, data[attr] as Value);
+                sql += ` \`${attr}\` = ${value}`;
+                if (attrIdx < attrs.length - 1) {
+                    sql += ',';
+                }
+            }
+        );
+
+        sql += ' where';
+        if (id) {
+            sql += ` id = ${id}`;
+        }
+        else if (query){
+            const whereText = this.translateWhere(entity, query, {
+                './': entity,
+            });
+            sql += whereText;
         }
 
         return sql;

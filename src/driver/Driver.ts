@@ -72,7 +72,13 @@ export abstract class Driver {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Result>;
+    }): Promise<Row>;
+
+    abstract createMany({entity, data, txn}: {
+        entity: string,
+        data: Data[],
+        txn?: Txn,
+    }): Promise<Row[]>
 
     abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: { 
         entity: string; 
@@ -85,4 +91,18 @@ export abstract class Driver {
         sort?: Sort;
         groupBy?: GroupBy;
     }): Promise<Row[]>;
+
+    abstract updateById({ entity, data, id, txn }: {
+        entity: string,
+        data: Data;
+        id?: string | number;
+        txn?: Txn;
+    }): Promise<Row>;
+
+    abstract updateByCondition({ entity, data, query, txn }: {
+        entity: string,
+        data: Data;
+        query?: Query;
+        txn?: Txn;
+    }): Promise<void>;
 }

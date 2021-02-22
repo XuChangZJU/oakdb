@@ -7,10 +7,14 @@ import { mysql } from './defs/source';
 import { initOakDbInstance, disconnectOakDbInstance } from './methods/init';
 
 describe('test insert', function() {
-    this.timeout(10000);
-    it ('test insert row', async () => {
-        const oakDb: OakDb = await initOakDbInstance(schemaTestCreate, mysql, true, true, undefined, true);
+    this.timeout(100000);
+    let oakDb: OakDb;
 
+    before(async () => {
+        oakDb = await initOakDbInstance(schemaTestCreate, mysql, true, true, undefined, true);
+    });
+
+    it ('test insert row', async () => {
         const txn = await oakDb.startTransaction();
         try {
             await oakDb.create({
@@ -27,7 +31,32 @@ describe('test insert', function() {
             await oakDb.rollbackTransaction(txn);
             throw err;
         }
+    });
 
+    it ('test insert many', async () => {
+        const txn = await oakDb.startTransaction();
+        try {
+            await oakDb.createMany({
+                entity: 'user',
+                data: [{
+                    name: 'xc',
+                    born: new Date('1983-11-10'),
+                },{
+                    name: 'gjj',
+                    born: new Date('1998-12-11'),
+                }],
+                txn,
+            }, true);
+            await oakDb.commitTransaction(txn);
+        }
+        catch (err) {
+            await oakDb.rollbackTransaction(txn);
+            throw err;
+        }
+
+    });
+
+    after(async() => {
         await disconnectOakDbInstance(oakDb);
-    })
+    });
 });

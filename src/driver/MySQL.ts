@@ -376,14 +376,32 @@ export class MySQL extends Driver {
         data: Data,
         txn?: Txn,
     }): Promise<Result> {        
-        const sql = this.translator.translateInsertRow(entity, data);
+        const sql = this.translator.translateInsertRow(entity, [data]);
 
-        const { insertId } = await this.exec(sql);
+        const { insertId } = await this.exec(sql, txn);
         
         return this.unfoldResult(entity, {
             id: insertId,
             ...data,
         }) as Row;
+    }
+
+    async createMany({entity, data, txn}: {
+        entity: string,
+        data: Data[],
+        txn?: Txn,
+    }): Promise<Row[]> {
+        const sql = this.translator.translateInsertRow(entity, data);
+
+        const { insertId } = await this.exec(sql, txn);
+
+        return data.map(
+            (d, idx) =>
+                this.unfoldResult(entity, {
+                    id: insertId + idx,
+                    ...d,
+                }) as Row
+        );
     }
     
     async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
@@ -411,5 +429,39 @@ export class MySQL extends Driver {
         const result  =  await this.exec(sql, txn);
 
         return this.unfoldResult(entity, result) as Row[];
+    }
+
+    async updateById({ entity, data, id, txn }: {
+        entity: string,
+        data: Data;
+        id: string | number;
+        txn?: Txn;
+    }): Promise<Row> {
+        const sql = this.translator.translateUpdate({
+            entity,
+            data,
+            id,
+        });
+
+        const result =  await this.exec(sql, txn);
+        return this.unfoldResult(entity, {
+            id,
+            ...data,
+        }) as Row;
+    }
+
+    async updateByCondition({ entity, data, query, txn }: {
+        entity: string,
+        data: Data;
+        query?: Query;
+        txn?: Txn;
+    }): Promise<void> {
+        const sql = this.translator.translateUpdate({
+            entity,
+            data,
+            query,
+        });
+
+        await this.exec(sql, txn);        
     }
 }
