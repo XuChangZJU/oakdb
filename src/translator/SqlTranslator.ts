@@ -22,6 +22,8 @@ export abstract class SqlTranslator extends Translator {
         return sql;
     }
 
+    abstract translateAttrProjection(dataType: DataType, alias: string, attr: string): string;
+
     abstract translateAttrValue(dataType: DataType, value: Value | Data ): string;
 
     abstract translateFullTextSearch(value: FullTextSearchQuery, entity: string, alias: string): string;
@@ -444,15 +446,15 @@ export abstract class SqlTranslator extends Translator {
                             projText += translateInner(ref as string, projection2[attr] as Projection, `${path}${attr}/`);
                         }
                         else if (projection2[attr] === 1){
-                            projText += ` \`${alias}\`.\`${attr}\` as \`${prefix}${attr}\``;
+                            projText += ` ${this.translateAttrProjection(type, alias, attr)} as \`${prefix}${attr}\``;
                         }
                         else {
                             assert(typeof projection2[attr] === 'string');
                             if ((projection2[attr] as string).startsWith('$$')) {
-                                projText += ` \`${alias}\`.\`${attr}\` as \`${(projection2[attr] as string).slice(2)}\``;
+                                projText += ` ${this.translateAttrProjection(type, alias, attr)} as \`${(projection2[attr] as string).slice(2)}\``;
                             }
                             else {
-                                projText += ` \`${alias}\`.\`${attr}\` as \`${prefix}${projection2[attr]}\``;
+                                projText += ` ${this.translateAttrProjection(type, alias, attr)} as \`${prefix}${projection2[attr]}\``;
                             }
                         }
                     }

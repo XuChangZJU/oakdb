@@ -6,6 +6,80 @@ import { Data, Value } from '../types/Result';
 import { FullTextSearchQuery } from '../types/Query';
 import { Index } from '../Schema';
 import assert from 'assert';
+import { geo, geoType } from '../types/DataFormat';
+import { ErrorCode } from '../errorCode';
+
+
+const GeoTypes = [
+    {
+        name: "Point"
+    },
+    {
+        name: "LineString",
+        element: "Point"
+    },
+    {
+        name: "MultiLineString",
+        element: "LineString"
+    },
+    {
+        name: "Polygon",
+        element: "LineString"
+    },
+    {
+        name: "MultiPoint",
+        element: "Point"
+    },
+    {
+        name: "MultiPolygon",
+        element: "Polygon"
+    }
+];
+
+function transformGeoData(data: geo) {
+    if (data.type.toLowerCase() === "geometrycollection") {
+        let result = "GeometryCollection(";
+        (data.coordinates as geo[]).forEach(
+            (ele: geo, idx: number) => {
+                if (idx > 0) {
+                    result += ",";
+                }
+                result += transformGeoData(ele);
+            }
+        );
+        result += ")";
+        return result;
+    }
+    else {
+        const type = GeoTypes.find(
+            (ele) => {
+                return ele.name.toLowerCase() === data.type.toLowerCase()
+            }
+        );
+        if (!type) {
+            throw ErrorCode.createError(ErrorCode.dataFormatError, `${data.type} is not a valid geo data`, type);
+        }
+        let result = type.name + "(";
+        data.coordinates.forEach(
+            (ele: any, idx:number) => {
+                if (idx > 0) {
+                    result += ",";
+                }
+                if (type.element) {
+                    result += transformGeoData({
+                        type: type.element as geoType,
+                        coordinates: ele
+                    });
+                }
+                else {
+                    result += new String(ele);
+                }
+            }
+        );
+        result += ")";
+        return result;
+    }
+}
 
 export class MySQLTranslator extends SqlTranslator {
     static supportedDataTypes: DataType[] = [
@@ -295,17 +369,24 @@ export class MySQLTranslator extends SqlTranslator {
         return sql;
     }
 
+    translateAttrProjection(dataType: DataType, alias: string, attr: string): string {
+        switch(dataType) {
+            case 'geometry': {
+                return `st_astext(\`${alias}\`.\`${attr}\`)`;
+            }
+            default:{
+                return `\`${alias}\`.\`${attr}\``;
+            }            
+        }
+    }
+
     translateAttrValue(dataType: DataType, value: Data | Value ): string {
         if (value === null) {
             return 'null';
         }
         switch (dataType) {
             case 'geometry': {
-                const { type, coordinates } = value;
-                // const type = value.type;
-                // const coordinates = value.coordinates;
-                // 目前只支持point
-                return `ST_GeomFromText('${type}(${coordinates[0], coordinates[1]})')`;
+                return transformGeoData(value);
             }
             case 'date': {
                 if (value instanceof Date) {

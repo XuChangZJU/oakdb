@@ -7,7 +7,7 @@ import { mysql } from './defs/source';
 import { initOakDbInstance, disconnectOakDbInstance } from './methods/init';
 
 describe('test select', function() {
-    this.timeout(10000);
+    this.timeout(1000000);
     let oakDb: OakDb;
 
     before(async () => {
@@ -15,7 +15,7 @@ describe('test select', function() {
 
         const txn = await oakDb.startTransaction();
         try {
-            const user = await oakDb.create({
+            await oakDb.create({
                 entity: 'user',
                 data: {
                     name: 'xc',
@@ -23,7 +23,58 @@ describe('test select', function() {
                 },
                 txn,
             });
-            console.log(user);
+            const user = await oakDb.create({
+                entity: 'user',
+                data: {
+                    name: 'wkj',
+                    born: new Date('1989-05-10'),
+                },
+                txn,
+            });
+            const { id: userId } = user;
+            
+            await oakDb.create({
+                entity: 'homework',
+                data: {
+                    title: 'english',
+                    content: 'hello, I am lilei',
+                    mark: 4.87,
+                    userId,
+                },
+            });
+
+            await oakDb.create({
+                entity: 'homework',
+                data: {
+                    title: 'math',
+                    content: '1 + 1 = 3',
+                    mark: 2.58,
+                    userId,
+                },
+            });
+
+            const shop = await oakDb.create({
+                entity: 'shop',
+                data: {
+                    location: {
+                        type: 'Point',
+                        coordinates: [120, 30],
+                    },
+                    name: '楼外楼',
+                    data: {
+                        star: 5,
+                        comment: 'so delicious!',
+                    }
+                },
+            });
+            const { id: shopId } = shop;
+            const userShop = await oakDb.create({
+                entity: 'userShop',
+                data: {
+                    userId,
+                    shopId,
+                },
+            });
             await oakDb.commitTransaction(txn);
         }
         catch (err) {
@@ -33,7 +84,40 @@ describe('test select', function() {
     });
 
     it ('test select row', async () => {
-        console.log('select');
+        const users = await oakDb.find({
+            entity: 'user',            
+        });
+
+        console.log(users);
+    });
+
+    it ('test select nested rows', async () => {
+        const homeworks = await oakDb.find({
+            entity: 'homework',
+            query: {
+                $or: [{
+                    $text: {
+                        $search: 'aaa',
+                    },
+                }, {
+                    user: {
+                        name: {
+                            $like: 'wk%',
+                        },
+                    },
+                }],
+            },
+        });
+
+        console.log(homeworks);
+    });
+
+    it ('test select geo', async () => {
+        const shops = await oakDb.find({
+            entity: 'shop',
+        });
+
+        console.log(JSON.stringify(shops));
     });
 
     after(async () => {

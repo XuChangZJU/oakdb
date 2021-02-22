@@ -82,7 +82,7 @@ export const schemaTestCreate: Schema = {
     shop: {
         title: '商店',
         attributes: {
-            coordinate: {
+            location: {
                 type: 'geometry',
                 notNull: true,
                 display: {
@@ -99,11 +99,17 @@ export const schemaTestCreate: Schema = {
                     header: '名称',
                 }
             },
+            data: {
+                type: 'object',
+                display: {
+                    header: '数据',
+                }
+            }
         },
         indexes: [{
-            name: 'idxCoordinate',
+            name: 'idxLocation',
             columns: [{
-                name: 'coordinate',
+                name: 'location',
             }],
             config: {
                 type: 'spatial',

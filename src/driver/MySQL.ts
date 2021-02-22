@@ -14,6 +14,23 @@ import { Projection } from '../types/Projection';
 import { Query } from '../types/Query';
 import { Sort } from '../types/Sort';
 import { GroupBy } from '../types/GroupBy';
+import { ErrorCode } from '../errorCode';
+
+function convertGeoTextToObject(geoText: string): object {
+    if (geoText.startsWith('POINT')) {
+        const coord = geoText.match((/\d+(?=\)|\s)/g)) as string[];
+
+        return {
+            type: 'Point',
+            coordinates: coord.map(
+                ele => parseFloat(ele)
+            ),
+        };
+    }
+    else {
+        throw ErrorCode.createError(ErrorCode.unsupportedYet, 'only support Point now');
+    }
+}
 
 export class MySQL extends Driver {
     mysql: any;
@@ -101,10 +118,12 @@ export class MySQL extends Driver {
         await this.connectionPool.end();
     }
 
-    unfoldResult(result: Row | Row[]): Row | Row[] {
-        function resolveAttribute(r: {
+    unfoldResult(entity: string, result: Row | Row[]): Row | Row[] {
+        const { schema } = this;
+        function resolveAttribute(entity2: string, r: {
             [propName: string]: any;
         }, attr: string, value: any) {
+            const { attributes } = schema[entity2];
             const i = attr.indexOf(".");
             if (i !== -1) {
                 const attrHead = attr.slice(0, i);
@@ -112,11 +131,44 @@ export class MySQL extends Driver {
                 if (!r[attrHead]) {
                     r[attrHead] = {};
                 }
-
-                resolveAttribute(r[attrHead], attrTail, value);
+                assert(attributes[attrHead] && attributes[attrHead].type === 'ref');
+                resolveAttribute(attributes[attrHead].ref as string, r[attrHead], attrTail, value);
             }
             else {
-                r[attr] = value;
+                const { type } = attributes[attr];
+                switch (type) {
+                    case 'date':
+                    case 'time': {
+                        if (value instanceof Date) {
+                            r[attr] = value.valueOf();
+                        }
+                        else {
+                            r[attr] = value;
+                        }
+                        break;
+                    }
+                    case 'geometry': {
+                        if (typeof value === 'string') {
+                            r[attr] = convertGeoTextToObject(value);
+                        }
+                        else {
+                            r[attr] = value;
+                        }
+                        break;
+                    }
+                    case 'object': {
+                        if (typeof value === 'string') {
+                            r[attr] = JSON.parse(value);
+                        }
+                        else {
+                            r[attr] = value;
+                        }
+                        break;
+                    }
+                    default: {
+                        r[attr] = value;
+                    }
+                }
             }
         }
 
@@ -146,7 +198,7 @@ export class MySQL extends Driver {
             let result2 = {};
             for (let attr in r) {
                 const value = r[attr];
-                resolveAttribute(result2, attr, value);
+                resolveAttribute(entity, result2, attr, value);
             }
     
             formalizeNullObject(result2);
@@ -161,12 +213,12 @@ export class MySQL extends Driver {
         return unfoldRow(result);
     }
 
-    async exec(sql: string, txn?: Txn): Promise<Row | Row[]> {
+    async exec(sql: string, txn?: Txn): Promise<any> {
         const { NODE_ENV } = process.env;
         if (NODE_ENV && NODE_ENV.toLowerCase() === 'dev') {
             console.log(sql);
         }
-        let result: Row | Row[];
+        let result;
         if (txn) {
             const { data: connection } = txn;
             
@@ -326,7 +378,12 @@ export class MySQL extends Driver {
     }): Promise<Result> {        
         const sql = this.translator.translateInsertRow(entity, data);
 
-        return await this.exec(sql) as Row;
+        const { insertId } = await this.exec(sql);
+        
+        return this.unfoldResult(entity, {
+            id: insertId,
+            ...data,
+        }) as Row;
     }
     
     async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
@@ -351,6 +408,8 @@ export class MySQL extends Driver {
             groupBy,
         });
 
-        return await this.exec(sql, txn) as Row[];
+        const result  =  await this.exec(sql, txn);
+
+        return this.unfoldResult(entity, result) as Row[];
     }
 }

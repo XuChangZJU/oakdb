@@ -5,6 +5,9 @@ export const ErrorCode = {
     uniqueConstraintViolated: 1002,
 
     sortAttrUnexisted: 1500,
+    dataFormatError: 1501,
+
+    unsupportedYet: 2000,
 
     createError: (code: number, message: string, params?: object): Error => {
         const error = new Error(message);
