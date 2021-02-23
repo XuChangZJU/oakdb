@@ -712,11 +712,33 @@ export abstract class SqlTranslator extends Translator {
             }
         );
 
-        sql += ' where';
         if (id) {
-            sql += ` id = ${id}`;
+            sql += ` where id = ${id}`;
         }
         else if (query){
+            const whereText = this.translateWhere(entity, query, {
+                './': entity,
+            });
+            sql += ` where ${whereText}`;
+        }
+
+        return sql;
+    }
+
+    translateRemove({ entity, id, query }: {
+        entity: string;
+        id?: string | number;
+        query?: Query;
+    }) : TranslateResult {
+        const { schema } = this;
+        const { attributes, storageName = entity } = schema[entity];
+
+        let sql = `delete from ${storageName} ${entity}`;
+
+        if (id) {
+            sql += ` where id = ${id}`;
+        }
+        else if (query) {
             const whereText = this.translateWhere(entity, query, {
                 './': entity,
             });

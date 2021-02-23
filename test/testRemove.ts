@@ -10,7 +10,7 @@ import { Trigger } from '../src/warden';
 import { assign } from 'lodash';
 import { assert } from 'console';
 
-describe('test update', function() {
+describe('test remove', function() {
     this.timeout(100000);
     let oakDb: OakDb;
     let user: Row;
@@ -54,98 +54,76 @@ describe('test update', function() {
 
     });
 
-    it ('test simple update', async () => {
-        const updated = await oakDb.update({
+    it ('test simple remove', async () => {
+        const removed = await oakDb.removeMany({
             entity: 'user',
-            id: user.id,
-            data: {
-                born: (new Date()),
+            query: {
+                name: 'wkj',
             },
         });
-        console.log(updated);
-    });
-
-    it ('test update many', async () => {
-        const txn = await oakDb.startTransaction();
-        try {
-            await oakDb.updateMany({
-                entity: 'user',
-                data: {
-                    born: new Date(),
-                },
-                query: {
-                    id: {
-                        $in: [1, 2, 3, 4],
-                    },
-                },
-                txn,
-            });
-            await oakDb.commitTransaction(txn);
-        }
-        catch (err) {
-            await oakDb.rollbackTransaction(txn);
-            throw err;
-        }
-
-        await disconnectOakDbInstance(oakDb);
-    });
-
-    it ('test update trigger', async () => {
-        const trigger:Trigger = {
-            name: 'when update homework\'s title, change its mark to zero',
-            entity: 'homework',
-            action: 'update',
-            attributes: ['title'],
-            valueCheck: ({ row, data }) => !data || data.title && (!row || row.title !== data.title),
-            before: true,
-            fn: async ({ row, data, txn }) => {
-                assign(data, {
-                    mark: 0,
-                });
-                return 1;
-            },
-        };
-
-        oakDb.registerTrigger(trigger);
-        const txn = await oakDb.startTransaction();
-        try {
-            const [ homework ] = await oakDb.find({
-                entity: 'homework',
-                indexFrom: 0,
-                count: 1,
-                txn,
-            });
-            console.log(homework);
-
-            const updateResult = await oakDb.update({
-                entity: 'homework',
-                data: {
-                    title: homework.title + 'aaa',
-                },
-                id: homework.id,
-                txn,
-            });
-            console.log(updateResult);
-
-            const homework2 = await oakDb.findById({
-                entity: 'homework',
-                id: homework.id,
-                txn,
-            });
-
-            console.log(homework2);
-            assert(homework2.mark === 0);
-            await oakDb.commitTransaction(txn);
-        }
-        catch (err) {
-            await oakDb.rollbackTransaction(txn);
-            throw err;
-        }
-
-        await disconnectOakDbInstance(oakDb);
-    });
+        console.log(removed);
+        const users = await oakDb.find({
+            entity: 'user',
+        });
+        assert(users.length === 1);
+    });    
 
     after(async() => {
         await disconnectOakDbInstance(oakDb);
+    });
+
+    it ('test remove trigger', async () => {
+        const trigger:Trigger = {
+            name: 'when delete user, delete his homework sychonously',
+            entity: 'user',
+            action: 'remove',
+            fn: async ({ triggeredRow, txn }) => {
+                return await oakDb.remove({
+                    entity: 'homework',
+                    id: (triggeredRow as Row).id,
+                    txn,
+                });
+            },
+            triggerEntity: 'homework',
+            triggerCondition: async ({ row }) => {
+                return {
+                    userId: (row as Row).id,
+                };
+            },
+            triggerProjection: {
+                id: 1,
+            },
+        };
+        oakDb.registerTrigger(trigger);
+
+        const txn = await oakDb.startTransaction();
+        try {
+            const h1 = await oakDb.find({
+                entity: 'homework',
+                query: {
+                    userId: user.id,
+                },
+                txn,
+            });
+            assert(h1.length === 1);
+            const removed = await oakDb.remove({
+                entity: 'user',
+                id: user.id,
+                txn,
+            });
+            console.log(removed);
+            await oakDb.commitTransaction(txn);
+        }
+        catch(err) {
+            await oakDb.rollbackTransaction(txn);
+            throw err;
+        }
+        const h1 = await oakDb.find({
+            entity: 'homework',
+            query: {
+                userId: user.id,
+            },
+        });
+        assert(h1.length === 0);
     });
 });

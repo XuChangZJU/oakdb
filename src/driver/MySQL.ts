@@ -11,7 +11,7 @@ import { v4 } from 'uuid';
 import { assign, unset } from 'lodash';
 import { promises } from 'fs';
 import { Projection } from '../types/Projection';
-import { Query } from '../types/Query';
+import { LogicQuery, PlainQuery, Query } from '../types/Query';
 import { Sort } from '../types/Sort';
 import { GroupBy } from '../types/GroupBy';
 import { ErrorCode } from '../errorCode';
@@ -463,5 +463,25 @@ export class MySQL extends Driver {
         });
 
         await this.exec(sql, txn);        
+    }
+
+    async removeById({ entity, id, txn }: {
+        entity: string;
+        id: string | number;
+        txn?: Txn;
+    }): Promise<void> {
+        const sql = this.translator.translateRemove({ entity, id });
+
+        await this.exec(sql, txn);
+    }
+
+    async removeByCondition({ entity, query, txn }: {
+        entity: string;
+        query?: Query;
+        txn?: Txn;
+    }): Promise<void> {
+        const sql = this.translator.translateRemove({ entity, query });
+
+        await this.exec(sql, txn);
     }
 }

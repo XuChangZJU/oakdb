@@ -95,7 +95,7 @@ export abstract class Driver {
     abstract updateById({ entity, data, id, txn }: {
         entity: string,
         data: Data;
-        id?: string | number;
+        id: string | number;
         txn?: Txn;
     }): Promise<Row>;
 
@@ -105,4 +105,16 @@ export abstract class Driver {
         query?: Query;
         txn?: Txn;
     }): Promise<void>;
+
+    abstract removeById({ entity, id, txn }: {
+        entity: string,
+        id: string | number;
+        txn?: Txn;
+    }): Promise<void>
+
+    abstract removeByCondition({ entity, query, txn}: {
+        entity: string,
+        query?: Query,
+        txn?: Txn;
+    }): Promise<void>
 }

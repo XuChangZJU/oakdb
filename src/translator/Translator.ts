@@ -80,4 +80,10 @@ export abstract class Translator {
         id?: string | number;
         query?: Query;
     }): TranslateResult;
+
+    abstract translateRemove({ entity, id, query }: {
+        entity: string;
+        id?: string | number;
+        query?: Query;
+    }) : TranslateResult;
 }

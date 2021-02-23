@@ -14,7 +14,7 @@ import { threadId } from 'worker_threads';
 type Action = 'insert'|'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
 interface TriggerInput {
     row?: Row,
-    data: Data,
+    data?: Data,
     txn?: Txn,
     triggeredRow?: Row,
     triggeredRows?: Row[],
@@ -25,12 +25,12 @@ export interface Trigger {
     entity: string;
     action: Action;
     before?: boolean;
-    valueCheck?: ({row, data}: {row?: Row, data: Data}) => boolean;
+    valueCheck?: ({row, data}: {row?: Row, data?: Data}) => boolean;
     attributes?: string | string[];
     fn: (triggerInput: TriggerInput) => Promise<any>;
     triggerEntity?: string,
     triggerProjection?: Projection,
-    triggerCondition?: ({row, data, txn}: {row?: Row, data: Data, txn: Txn}) => Promise<Query>;
+    triggerCondition?: ({row, data, txn}: {row?: Row, data?: Data, txn?: Txn}) => Promise<Query>;
     group?: boolean;
     volatile?: 'makeSure' | 'takeEasy';         // 如果是makesure，则会保证事务提交时，trigger至少执行一次（可能会多次），takeEasy则不能保证
 }
@@ -115,7 +115,7 @@ export abstract class Warden {
     protected getTriggers({ entity, action, data, row }: {
         entity: string,
         action: Action,
-        data: Data,
+        data?: Data,
         row?: Row,
     }): Trigger[]|void {
         const action2 = Warden.ActionAlias[action];
@@ -130,7 +130,7 @@ export abstract class Warden {
                 trigger => {
                     const { valueCheck, name, volatile } = trigger;
                     const valueCheckResult = !trigger.valueCheck || trigger.valueCheck({ row, data });
-                    const attrCheckResult = !trigger.attributes
+                    const attrCheckResult = !trigger.attributes || !data
                         || (trigger.attributes instanceof Array && intersection(trigger.attributes, Object.keys(data)).length > 0)
                         || Object.keys(data).includes(trigger.attributes as string);
                     const checkResult = valueCheckResult && attrCheckResult;
@@ -198,7 +198,7 @@ export abstract class Warden {
         trigger: Trigger,
         txn: Txn,
         row?: Row,
-        data: Data;
+        data?: Data;
     }): Promise<any> {
         const {
             triggerCondition,
@@ -255,7 +255,7 @@ export abstract class Warden {
     private async doTriggerAgain({ trigger, row, data, txn }: {
         trigger: Trigger,
         row: Row,
-        data: Data,
+        data?: Data,
         txn: Txn,
     }): Promise<any> {
         const {
@@ -298,7 +298,7 @@ export abstract class Warden {
     protected async execTriggers({ triggers, row, data, txn }:{
         triggers: Trigger[],
         row?: Row,
-        data: Data,
+        data?: Data,
         txn: Txn,
     }):Promise<void> {
         if (triggers.length > 0) {
@@ -391,6 +391,8 @@ export abstract class Warden {
                         }
                         this.log(`complete ${rows.length} volatile triggers on ${entity} in the patrol`)
                     }
+
+                    await this.commitTransaction(txn);
                 } catch (err) {
                     await this.rollbackTransaction(txn);
                     throw err;

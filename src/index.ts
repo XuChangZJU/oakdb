@@ -18,103 +18,11 @@ import { LogicOperators } from './types/Operator';
 import { assert } from 'console';
 
 export class OakDb extends Warden {
-    remove({ entity, id, txn }: { entity: string; id: string | number; txn?: Txn | undefined; }): Promise<Row> {
-        throw new Error('Method not implemented.');
-    }
+
     count({ entity, query, txn }: { entity: string; query?: Query | undefined; txn?: Txn | undefined; }): Promise<number> {
         throw new Error('Method not implemented.');
     }
 
-    private async preUpdate(entity: string, data: Data, id?: string|number, row?:Row, txn?: Txn): Promise<Row | undefined> {
-        const now = Date.now();
-        assign(data, {
-            $$updateAt$$: now,
-        });
-
-        let row2: Row | undefined;
-        if (txn) {
-            const possibleTriggers = this.getTriggers({ entity, action: 'update', data, row });
-            if (possibleTriggers) {
-                let beforeTriggers = possibleTriggers.filter(
-                    ({ before }) => before
-                );
-                if (beforeTriggers.length > 0) {
-                    if (!row) {
-                        row2 = await this.findById({ entity, id: id as string|number, txn });
-                        beforeTriggers = beforeTriggers.filter(
-                            (trigger) => !trigger.valueCheck || trigger.valueCheck({ row: row2, data })
-                        );
-                    }
-                    await this.execTriggers({
-                        triggers: beforeTriggers,
-                        data,
-                        row: row || row2,
-                        txn,
-                    });
-                }
-            }
-        }
-
-        return row2;
-    }
-
-    private async postUpdate(entity: string, data: Data, row:Row, txn?: Txn): Promise<void>  {
-        if (txn) {
-            const Triggers = this.getTriggers({ entity, action: 'update', data, row });
-            if (Triggers) {
-                let afterTriggers = Triggers.filter(
-                    ({ before }) => !before
-                );
-                if (afterTriggers.length > 0) {
-                    await this.execTriggers({
-                        triggers: afterTriggers,
-                        data,
-                        row,
-                        txn,
-                    });
-                }
-            }
-        }
-    }
-
-    async update({ entity, data, id, row, txn }: {
-        entity: string;
-        data: Data;
-        id?: string | number;
-        row?: Row;
-        txn?: Txn;
-    }): Promise<Row> {
-        assert(id || row);
-        const row2 = await this.preUpdate(entity, data, id, row, txn);
-        
-        const result = await this.driver.updateById({
-            entity,
-            data,
-            id: id || (row as Row).id,
-            txn,
-        });
-
-        const rowNow = assign({}, row || row2, data);
-        await this.postUpdate(entity, data, rowNow as Row, txn);        
-        return result;
-    }
-
-    async updateMany({ entity, data, query, txn }: {
-        entity: string;
-        data: Data;
-        query?: Query;
-        txn?: Txn;
-    }): Promise<void> {
-        assign(data, {
-            $$updateAt$$: Date.now(),
-        });
-        await this.driver.updateByCondition({
-            entity,
-            data,
-            query,
-            txn,
-        });
-    }
     schema: Schema;
     source: Source;
     driver: Driver;
@@ -256,11 +164,11 @@ export class OakDb extends Warden {
                         action: 'insert',
                         before: true,
                         fn: async ({ data, txn }: {
-                            data: Data,
+                            data?: Data,
                             txn?: Txn,
                         }): Promise<number> => {
                             let result = 0;
-                            if (createUuid && !data.$$uuid$$) {
+                            if (createUuid && data && !data.$$uuid$$) {
                                 assign(data, {
                                     $$uuid$$: serialUuid(64),
                                 });
@@ -513,5 +421,199 @@ export class OakDb extends Warden {
             txn,
         });
         return result;
+    }
+
+    private async preUpdate(entity: string, data: Data, id?: string|number, row?:Row, txn?: Txn): Promise<Row | undefined> {
+        const now = Date.now();
+        assign(data, {
+            $$updateAt$$: now,
+        });
+
+        let row2: Row | undefined;
+        if (txn) {
+            const possibleTriggers = this.getTriggers({ entity, action: 'update', data, row });
+            if (possibleTriggers) {
+                if (!row) {
+                    row2 = await this.findById({ entity, id: id as string|number, txn });
+                }
+                let beforeTriggers = possibleTriggers.filter(
+                    ({ before }) => before
+                );
+
+                if (!row) {
+                    beforeTriggers = beforeTriggers.filter(
+                        (trigger) => !trigger.valueCheck || trigger.valueCheck({ row: row2, data })
+                    );
+                }
+                if (beforeTriggers.length > 0) {                    
+                    await this.execTriggers({
+                        triggers: beforeTriggers,
+                        data,
+                        row: row || row2,
+                        txn,
+                    });
+                }
+            }
+        }
+
+        return row2;
+    }
+
+    private async postUpdate(entity: string, data: Data, row:Row, txn?: Txn): Promise<void>  {
+        if (txn) {
+            const Triggers = this.getTriggers({ entity, action: 'update', data, row });
+            if (Triggers) {
+                let afterTriggers = Triggers.filter(
+                    ({ before }) => !before
+                );
+                if (afterTriggers.length > 0) {
+                    await this.execTriggers({
+                        triggers: afterTriggers,
+                        data,
+                        row,
+                        txn,
+                    });
+                }
+            }
+        }
+    }
+
+    async update({ entity, data, id, row, txn }: {
+        entity: string;
+        data: Data;
+        id?: string | number;
+        row?: Row;
+        txn?: Txn;
+    }): Promise<Row> {
+        assert(id || row);
+        const row2 = await this.preUpdate(entity, data, id, row, txn);
+        
+        const result = await this.driver.updateById({
+            entity,
+            data,
+            id: id || (row as Row).id,
+            txn,
+        });
+
+        const rowNow = assign({}, row || row2, data);
+        await this.postUpdate(entity, data, rowNow as Row, txn);        
+        return result;
+    }
+
+    async updateMany({ entity, data, query, txn }: {
+        entity: string;
+        data: Data;
+        query?: Query;
+        txn?: Txn;
+    }): Promise<void> {
+        assign(data, {
+            $$updateAt$$: Date.now(),
+        });
+        await this.driver.updateByCondition({
+            entity,
+            data,
+            query,
+            txn,
+        });
+    }
+
+    private async preRemove(entity: string, id?: string | number, row?: Row, txn?: Txn): Promise<{ deletePhysically: boolean; row?: Row; }> {
+        const { attributes } = this.schema[entity];
+        let deletePhysically = true;
+        if (attributes.hasOwnProperty('$$deleteAt$$')) {
+            deletePhysically = false;            
+        }
+        
+        let row2: Row | undefined;
+        if (txn) {
+            const possibleTriggers = this.getTriggers({ entity, action: 'remove', row });
+            if (possibleTriggers) {
+                if (!row) {
+                    row2 = await this.findById({ entity, id: id as string|number, txn });
+                }
+                let beforeTriggers = possibleTriggers.filter(
+                    ({ before }) => before
+                );
+                if (!row) {
+                    beforeTriggers = beforeTriggers.filter(
+                        (trigger) => !trigger.valueCheck || trigger.valueCheck({ row: row2 })
+                    );
+                }
+                if (beforeTriggers.length > 0) {
+                    await this.execTriggers({
+                        triggers: beforeTriggers,
+                        row: row || row2,
+                        txn,
+                    });
+                }
+            }
+        }
+        return {
+            deletePhysically,
+            row: row || row2,
+        };
+    }
+
+    private async postRemove(entity: string, row: Row, txn?: Txn): Promise<void> {
+        if (txn) {
+            const Triggers = this.getTriggers({ entity, action: 'remove', row });
+            if (Triggers) {
+                let beforeTriggers = Triggers.filter(
+                    ({ before }) => !before
+                );
+                if (beforeTriggers.length > 0) {
+                    await this.execTriggers({
+                        triggers: beforeTriggers,
+                        row,
+                        txn,
+                    });
+                }
+            }
+        }
+    }
+
+    async remove({ entity, id, row, txn }: {
+        entity: string;
+        id?: string | number;
+        row?: Row;
+        txn?: Txn;
+    }): Promise<Row> {
+        const {
+            deletePhysically,
+            row: row2,
+        } = await this.preRemove(entity, id, row, txn);
+
+        if (deletePhysically) {
+            await this.driver.removeById({ entity, id: (id || (row2 && row2.id)) as string | number, txn });
+        }
+        else {
+            await this.driver.updateById({ entity, data: {
+                $$deleteAt$$: Date.now(),
+            }, id: (id || (row2 && row2.id)) as string | number, txn});
+        }
+        
+        await this.postRemove(entity, row2 as Row, txn );
+        
+        return row || { id: id as string | number };
+    }
+
+    async removeMany({ entity, query, txn} : {
+        entity: string;
+        query?: Query;
+        txn?: Txn;
+    }): Promise<void> {
+        const { attributes } = this.schema[entity];
+        if (attributes.hasOwnProperty('$$deleteAt$$')) {
+            await this.updateMany({ entity, data: {
+                $$deleteAt$$: Date.now(),
+            }, query, txn});
+        }
+        else {
+            await this.driver.removeByCondition({
+                entity,
+                query,
+                txn,
+            });
+        }
     }
 }
