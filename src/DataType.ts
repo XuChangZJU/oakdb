@@ -196,7 +196,8 @@ export type SimpleColumnType =
     |"ltree"  // postgres
 
     | "object"      // 增加的json类型别名
-    | "array";      // 增加的json类型别名
+    | "array"      // 增加的json类型别名
+    | "function";       // 增加的function类型
 
 
 

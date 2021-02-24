@@ -1,6 +1,6 @@
 import { Schema } from '../src/Schema';
 import { Source } from '../src/source/Source';
-import { OakDb } from '../src/index';
+import { OakDb } from '../src/oakDb';
 
 import { schemaTestCreate } from './defs/schema';
 import { mysql } from './defs/source';
@@ -54,6 +54,32 @@ describe('test insert', function() {
             throw err;
         }
 
+    });
+
+    it ('test function', async () => {
+        async function asyncFunction(x: number, y: number): Promise<number> {
+            return new Promise(
+                (resolve) => {
+                    setTimeout(() => resolve(x + y), 2000);
+                }
+            );
+        }
+
+        const code = {
+            name: asyncFunction.name,
+            fn: asyncFunction,
+        };
+
+        await oakDb.create({ entity: 'code', data: code });
+
+        const [ code2 ] = await oakDb.find({
+            entity: 'code',            
+        });
+
+        console.log(code2);        
+
+        const result = await code2.fn(3, 5);
+        console.log(result);
     });
 
     after(async() => {

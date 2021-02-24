@@ -262,7 +262,7 @@ export class MySQLTranslator extends SqlTranslator {
         if (['object', 'array'].includes(type as string)) {
             return 'json ';
         }
-        if (['image'].includes(type as string)) {
+        if (['image', 'function'].includes(type as string)) {
             return 'text ';
         }
 
@@ -400,6 +400,9 @@ export class MySQLTranslator extends SqlTranslator {
             case 'object':
             case 'array': {
                 return `'${JSON.stringify(value)}'`;
+            }
+            case 'function': {
+                return `' return ${value.toString()}'`;
             }
             default: {
                 if (typeof value === 'string') {

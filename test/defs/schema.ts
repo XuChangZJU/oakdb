@@ -135,4 +135,21 @@ export const schemaTestCreate: Schema = {
             },
         },
     },
+    code: {
+        title: '函数',
+        attributes: {
+            fn: {
+                type: 'function',
+                display: {
+                    header: '函数体',
+                },
+            },
+            name: {
+                type: 'text',
+                display: {
+                    header: '函数名',
+                },
+            },
+        },
+    },
 };

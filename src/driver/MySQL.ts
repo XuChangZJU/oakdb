@@ -165,6 +165,15 @@ export class MySQL extends Driver {
                         }
                         break;
                     }
+                    case 'function': {
+                        if (typeof value === 'string') {
+                            r[attr] = new Function(value)();
+                        }
+                        else {
+                            r[attr] = value;
+                        }
+                        break;
+                    }
                     default: {
                         r[attr] = value;
                     }
