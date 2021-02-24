@@ -21,7 +21,7 @@ export interface Trigger {
         data?: Data;
     }) => boolean;
     attributes?: string | string[];
-    fn: (triggerInput: TriggerInput) => Promise<any>;
+    fn: (triggerInput: TriggerInput, context?: object) => Promise<any>;
     triggerEntity?: string;
     triggerProjection?: Projection;
     triggerCondition?: ({ row, data, txn }: {
@@ -64,7 +64,7 @@ export declare abstract class Warden {
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
     abstract find({ entity, projection, query, indexFrom, count, forUpdate, txn }: {
         entity: string;
         projection?: Projection;
@@ -73,23 +73,24 @@ export declare abstract class Warden {
         count?: number;
         txn?: Txn;
         forUpdate?: boolean;
-    }): Promise<Row[]>;
+    }, context?: object): Promise<Row[]>;
     abstract startTransaction(option?: TxnOption): Promise<Txn>;
     abstract commitTransaction(txn: Txn): Promise<void>;
     abstract rollbackTransaction(txn: Txn): Promise<void>;
     private getCount;
     private doTrigger;
     private doTriggerAgain;
-    protected execTriggers({ triggers, row, data, txn }: {
+    protected execTriggers({ triggers, row, data, txn, context }: {
         triggers: Trigger[];
         row?: Row;
         data?: Data;
         txn: Txn;
+        context?: object;
     }): Promise<void>;
     /**
      * find the volatile triggers are not done properly, then do them again.
      * @params interval: delay(millisecond) for the volatile triggers will be executed.
      */
-    patrol(interval?: number): Promise<void>;
+    patrol(interval?: number, context?: object): Promise<void>;
 }
 export {};

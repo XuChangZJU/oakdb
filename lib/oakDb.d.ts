@@ -47,12 +47,12 @@ export declare class OakDb extends Warden {
         entity: string;
         data: Data;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
     createMany({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
-    }, batch?: boolean): Promise<Row[]>;
+    }, batch?: boolean, context?: object): Promise<Row[]>;
     /**
      * 同create
      * @param param0
@@ -61,12 +61,12 @@ export declare class OakDb extends Warden {
         entity: string;
         data: Data;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
     insertMany({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
-    }, batch?: boolean): Promise<Row[]>;
+    }, batch?: boolean, context?: object): Promise<Row[]>;
     addDeleteAtColumnCheck(query: Query, entity: string): void;
     find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
         entity: string;
@@ -78,13 +78,13 @@ export declare class OakDb extends Warden {
         forUpdate?: boolean;
         sort?: Sort;
         groupBy?: GroupBy;
-    }): Promise<Row[]>;
+    }, context?: object): Promise<Row[]>;
     findById({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
     private preUpdate;
     private postUpdate;
     update({ entity, data, id, row, txn }: {
@@ -93,7 +93,7 @@ export declare class OakDb extends Warden {
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
     updateMany({ entity, data, query, txn }: {
         entity: string;
         data: Data;
@@ -107,7 +107,7 @@ export declare class OakDb extends Warden {
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
     removeMany({ entity, query, txn }: {
         entity: string;
         query?: Query;
