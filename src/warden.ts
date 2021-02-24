@@ -7,9 +7,6 @@ import { ErrorCode } from './errorCode';
 import { parallel } from './utils';
 import assert from 'assert';
 import { assign, cloneDeep, intersection, remove, values } from 'lodash';
-import { v4 } from 'uuid';
-import EventEmitter from 'events';
-import { threadId } from 'worker_threads';
 
 type Action = 'insert'|'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
 interface TriggerInput {

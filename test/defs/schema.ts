@@ -10,15 +10,9 @@ export const schemaTestCreate: Schema = {
                 params: {
                     length: 32,
                 },
-                display: {
-                    header: '姓名',
-                },
             },
             born: {
                 type: 'date',
-                display: {
-                    header: '出生日期',
-                },
             },
         },
         indexes: [{
@@ -42,28 +36,16 @@ export const schemaTestCreate: Schema = {
                 params: {
                     length: 32,
                 },
-                display: {
-                    header: '标题',
-                },
             },
             content: {
                 type: 'text',
-                display: {
-                    header: '内容',
-                },
             },
             mark: {
                 type: 'float',
-                display: {
-                    header: '打分',
-                },
             },
             user: {
                 type: 'ref',
                 ref: 'user',
-                display: {
-                    header: '作者',
-                },
             },
         },
         indexes: [{
@@ -85,9 +67,6 @@ export const schemaTestCreate: Schema = {
             location: {
                 type: 'geometry',
                 notNull: true,
-                display: {
-                    header: '坐标',
-                },
             },
             name: {
                 type: 'varchar',
@@ -95,15 +74,9 @@ export const schemaTestCreate: Schema = {
                     length: 32,
                 },
                 unique: true,
-                display: {
-                    header: '名称',
-                }
             },
             data: {
                 type: 'object',
-                display: {
-                    header: '数据',
-                }
             }
         },
         indexes: [{
@@ -122,16 +95,10 @@ export const schemaTestCreate: Schema = {
             user: {
                 type: 'ref',
                 ref: 'user',
-                display: {
-                    header: '用户',
-                },
             },
             shop: {
                 type: 'ref',
                 ref: 'shop',
-                display: {
-                    header: '商店',
-                },
             },
         },
     },
@@ -140,15 +107,9 @@ export const schemaTestCreate: Schema = {
         attributes: {
             fn: {
                 type: 'function',
-                display: {
-                    header: '函数体',
-                },
             },
             name: {
                 type: 'text',
-                display: {
-                    header: '函数名',
-                },
             },
         },
     },

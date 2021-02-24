@@ -21,11 +21,6 @@ export interface Index {
     config?: IndexConfig;
 }
 
-export interface Display {
-    icon?: string;
-    header: string;
-    weight?: number;
-}
 
 export interface Attribute {
     type: DataType | 'ref';
@@ -34,7 +29,6 @@ export interface Attribute {
     default?: string | number | boolean;
     unique?: boolean;
     notNull?: boolean;
-    display: Display;
 }
 
 export interface Attributes {
@@ -50,7 +44,6 @@ export interface Entity {
     title: string;
     storageName?: string,
     comment?: string,
-    icon?: string;
     attributes: Attributes;
     indexes?: Index[];
     config?: EntityConfig;
