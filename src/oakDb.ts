@@ -228,7 +228,7 @@ export class OakDb extends Warden {
         return await this.driver.rollbackTransaction(txn);
     }
 
-    private async preInsert(entity: string, data: Data, txn?: Txn) {
+    private async preInsert(entity: string, data: Data, txn?: Txn, context?: object) {
         const now = Date.now();
         assign(data, {
             $$createAt$$: now,
@@ -247,13 +247,14 @@ export class OakDb extends Warden {
                         triggers: beforeTriggers,
                         data,
                         txn,
+                        context,
                     });
                 }
             }
         }
     }
 
-    private async postInsert(entity: string, data: Data, row: Row, txn?: Txn) {
+    private async postInsert(entity: string, data: Data, row: Row, txn?: Txn, context?: object) {
         if (txn) {
             const triggers = this.getTriggers({ entity, action: 'insert', data });
             if (triggers) {
@@ -267,6 +268,7 @@ export class OakDb extends Warden {
                         data,
                         row,
                         txn,
+                        context,
                     });
                 }
             }
@@ -282,10 +284,10 @@ export class OakDb extends Warden {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Row> {
-        await this.preInsert(entity, data, txn);
+    }, context?: object): Promise<Row> {
+        await this.preInsert(entity, data, txn, context);
         const row = await this.driver.create({ entity, data, txn });       
-        await this.postInsert(entity, data, row, txn);
+        await this.postInsert(entity, data, row, txn, context);
 
         return row;
     }
@@ -294,15 +296,15 @@ export class OakDb extends Warden {
         entity: string,
         data: Data[],
         txn?: Txn,
-    }, batch?: boolean): Promise<Row[]> {
+    }, batch?: boolean, context?: object): Promise<Row[]> {
         if (batch) {
             for (let d of data) {
-                await this.preInsert(entity, d, txn);
+                await this.preInsert(entity, d, txn, context);
             }
             const rows = await this.driver.createMany({ entity, data, txn });
             let idx = 0;
             for (let r of rows) {
-                await this.postInsert(entity, data[idx ++], r, txn);
+                await this.postInsert(entity, data[idx ++], r, txn, context);
             }
             return rows;
         }
@@ -322,16 +324,16 @@ export class OakDb extends Warden {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Row> {
-        return await this.create({ entity, data, txn });
+    }, context?: object): Promise<Row> {
+        return await this.create({ entity, data, txn }, context);
     }
 
     async insertMany({ entity, data, txn }:{
         entity: string,
         data: Data[],
         txn?: Txn,
-    }, batch?: boolean): Promise<Row[]> {
-        return this.createMany({ entity, data, txn }, batch);
+    }, batch?: boolean, context?: object): Promise<Row[]> {
+        return this.createMany({ entity, data, txn }, batch, context);
     }
 
     addDeleteAtColumnCheck(query: Query, entity: string): void {
@@ -379,7 +381,7 @@ export class OakDb extends Warden {
         forUpdate?: boolean;
         sort?: Sort;
         groupBy?: GroupBy;
-    }): Promise<Row[]> {
+    }, context?: object): Promise<Row[]> {
         const { attributes } = this.schema[entity];
         let query2 = query;
         if (attributes.hasOwnProperty('$$deleteAt$$')) {
@@ -394,7 +396,7 @@ export class OakDb extends Warden {
                 };
             }
         }        
-        return await this.driver.find({
+        const rows:Row[] = await this.driver.find({
             entity,
             projection,
             query: query2,
@@ -405,14 +407,33 @@ export class OakDb extends Warden {
             sort,
             groupBy,
         });
+
+        if (txn) {
+            for (let row of rows) {
+                const triggers = this.getTriggers({
+                    entity,
+                    action: 'select',
+                    row,
+                });
+                if (triggers && triggers.length > 0) {
+                    await this.execTriggers({
+                        triggers,
+                        row,
+                        txn,
+                        context,
+                    });
+                }                            
+            }
+        }
+        return rows;
     }
     async findById({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }): Promise<Row> {
-        const [ result ] = await this.driver.find({
+    }, context?: object): Promise<Row> {
+        const [ row ] = await this.driver.find({
             entity,
             projection,
             query: { id },
@@ -420,10 +441,26 @@ export class OakDb extends Warden {
             count: 1,
             txn,
         });
-        return result;
+
+        if (txn && row) {
+            const triggers = this.getTriggers({
+                entity,
+                action: 'select',
+                row,
+            });
+            if (triggers && triggers.length > 0) {
+                await this.execTriggers({
+                    triggers,
+                    row,
+                    txn,
+                    context,
+                });
+            }  
+        }
+        return row;
     }
 
-    private async preUpdate(entity: string, data: Data, id?: string|number, row?:Row, txn?: Txn): Promise<Row | undefined> {
+    private async preUpdate(entity: string, data: Data, id?: string|number, row?:Row, txn?: Txn, context?: object): Promise<Row | undefined> {
         const now = Date.now();
         assign(data, {
             $$updateAt$$: now,
@@ -451,6 +488,7 @@ export class OakDb extends Warden {
                         data,
                         row: row || row2,
                         txn,
+                        context,
                     });
                 }
             }
@@ -459,7 +497,7 @@ export class OakDb extends Warden {
         return row2;
     }
 
-    private async postUpdate(entity: string, data: Data, row:Row, txn?: Txn): Promise<void>  {
+    private async postUpdate(entity: string, data: Data, row:Row, txn?: Txn, context?: object): Promise<void>  {
         if (txn) {
             const Triggers = this.getTriggers({ entity, action: 'update', data, row });
             if (Triggers) {
@@ -472,6 +510,7 @@ export class OakDb extends Warden {
                         data,
                         row,
                         txn,
+                        context,
                     });
                 }
             }
@@ -484,9 +523,9 @@ export class OakDb extends Warden {
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }): Promise<Row> {
+    }, context?: object): Promise<Row> {
         assert(id || row);
-        const row2 = await this.preUpdate(entity, data, id, row, txn);
+        const row2 = await this.preUpdate(entity, data, id, row, txn, context);
         
         const result = await this.driver.updateById({
             entity,
@@ -496,7 +535,7 @@ export class OakDb extends Warden {
         });
 
         const rowNow = assign({}, row || row2, data);
-        await this.postUpdate(entity, data, rowNow as Row, txn);        
+        await this.postUpdate(entity, data, rowNow as Row, txn, context);        
         return result;
     }
 
@@ -517,7 +556,7 @@ export class OakDb extends Warden {
         });
     }
 
-    private async preRemove(entity: string, id?: string | number, row?: Row, txn?: Txn): Promise<{ deletePhysically: boolean; row?: Row; }> {
+    private async preRemove(entity: string, id?: string | number, row?: Row, txn?: Txn, context?: object): Promise<{ deletePhysically: boolean; row?: Row; }> {
         const { attributes } = this.schema[entity];
         let deletePhysically = true;
         if (attributes.hasOwnProperty('$$deleteAt$$')) {
@@ -544,6 +583,7 @@ export class OakDb extends Warden {
                         triggers: beforeTriggers,
                         row: row || row2,
                         txn,
+                        context,
                     });
                 }
             }
@@ -554,7 +594,7 @@ export class OakDb extends Warden {
         };
     }
 
-    private async postRemove(entity: string, row: Row, txn?: Txn): Promise<void> {
+    private async postRemove(entity: string, row: Row, txn?: Txn, context?: object): Promise<void> {
         if (txn) {
             const Triggers = this.getTriggers({ entity, action: 'remove', row });
             if (Triggers) {
@@ -566,6 +606,7 @@ export class OakDb extends Warden {
                         triggers: beforeTriggers,
                         row,
                         txn,
+                        context,
                     });
                 }
             }
@@ -577,11 +618,11 @@ export class OakDb extends Warden {
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }): Promise<Row> {
+    }, context?: object): Promise<Row> {
         const {
             deletePhysically,
             row: row2,
-        } = await this.preRemove(entity, id, row, txn);
+        } = await this.preRemove(entity, id, row, txn, context);
 
         if (deletePhysically) {
             await this.driver.removeById({ entity, id: (id || (row2 && row2.id)) as string | number, txn });
@@ -592,7 +633,7 @@ export class OakDb extends Warden {
             }, id: (id || (row2 && row2.id)) as string | number, txn});
         }
         
-        await this.postRemove(entity, row2 as Row, txn );
+        await this.postRemove(entity, row2 as Row, txn, context);
         
         return row || { id: id as string | number };
     }

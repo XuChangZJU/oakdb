@@ -27,7 +27,7 @@ export interface Trigger {
     before?: boolean;
     valueCheck?: ({row, data}: {row?: Row, data?: Data}) => boolean;
     attributes?: string | string[];
-    fn: (triggerInput: TriggerInput) => Promise<any>;
+    fn: (triggerInput: TriggerInput, context?: object) => Promise<any>;
     triggerEntity?: string,
     triggerProjection?: Projection,
     triggerCondition?: ({row, data, txn}: {row?: Row, data?: Data, txn?: Txn}) => Promise<Query>;
@@ -165,7 +165,7 @@ export abstract class Warden {
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }): Promise<Row>;
+    }, context?: object): Promise<Row>;
 
     abstract find({ entity, projection, query, indexFrom, count, forUpdate, txn}: {
         entity: string;
@@ -175,7 +175,7 @@ export abstract class Warden {
         count?: number;
         txn?: Txn;
         forUpdate?: boolean;
-    }): Promise<Row[]>;
+    }, context?: object): Promise<Row[]>;
 
     abstract startTransaction(option?: TxnOption): Promise<Txn>;
 
@@ -194,11 +194,12 @@ export abstract class Warden {
             return 1;
         }
     }
-    private async doTrigger({ trigger, txn, row, data }: {
+    private async doTrigger({ trigger, txn, row, data, context }: {
         trigger: Trigger,
         txn: Txn,
         row?: Row,
         data?: Data;
+        context?: object;
     }): Promise<any> {
         const {
             triggerCondition,
@@ -210,7 +211,7 @@ export abstract class Warden {
         } = trigger;
         
         const execFn = async (triggerInput: TriggerInput) => {
-            const result = await fn(triggerInput);
+            const result = await fn(triggerInput, context);
             const count = this.getCount(result);
             this.log(`trigger ${name} executed successfully, affects ${count} rows`);
             return result;
@@ -221,7 +222,7 @@ export abstract class Warden {
                 entity: triggerEntity,
                 projection: triggerProjection,
                 query,
-            });
+            }, context);
             if (group) {
                 const result = await execFn({
                     txn,
@@ -252,11 +253,12 @@ export abstract class Warden {
         }
     }
 
-    private async doTriggerAgain({ trigger, row, data, txn }: {
+    private async doTriggerAgain({ trigger, row, data, txn, context }: {
         trigger: Trigger,
         row: Row,
         data?: Data,
         txn: Txn,
+        context?: object;
     }): Promise<any> {
         const {
             entity,
@@ -268,6 +270,7 @@ export abstract class Warden {
             row,
             data,
             trigger,
+            context,
         });
 
         if (volatile === 'makeSure') {
@@ -295,11 +298,12 @@ export abstract class Warden {
         return result;
     }
 
-    protected async execTriggers({ triggers, row, data, txn }:{
-        triggers: Trigger[],
-        row?: Row,
-        data?: Data,
-        txn: Txn,
+    protected async execTriggers({ triggers, row, data, txn, context }:{
+        triggers: Trigger[];
+        row?: Row;
+        data?: Data;
+        txn: Txn;
+        context?: object;
     }):Promise<void> {
         if (triggers.length > 0) {
             const promises = triggers.map(
@@ -355,7 +359,7 @@ export abstract class Warden {
      * find the volatile triggers are not done properly, then do them again.
      * @params interval: delay(millisecond) for the volatile triggers will be executed.
      */
-    async patrol(interval: number = 60000):Promise<void> {
+    async patrol(interval: number = 60000, context?: object):Promise<void> {
         const entities = [...this.triggerNameStore.values()].filter(
             trigger => trigger.volatile === 'makeSure',
         ).map(
@@ -379,7 +383,7 @@ export abstract class Warden {
                                 $lt: now - interval,
                             },
                         },
-                    });
+                    }, context);
                     if (rows.length > 0) {
                         for (let row2 of rows) {
                             const { id, $$volatileData$$ } = row2;
