@@ -10,6 +10,8 @@ export * from './types/Query';
 export * from './types/Result';
 export * from './types/Sort';
 export * from './types/Txn';
+export * from './DataType';
+export * from './DataTypeDefaults';
 
 export * from './driver/Driver';
 export * from './source/Source';
