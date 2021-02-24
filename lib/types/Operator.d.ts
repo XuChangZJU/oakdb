@@ -1,0 +1,14 @@
+export declare type ComparisonOperator = '$eq' | '$gt' | '$gte' | '$lt' | '$lte' | '$ne' | '$like';
+export declare type LogicOperator = '$and' | '$or' | '$not' | '$nor' | '$xor';
+export declare type ElementOperator = '$exists';
+export declare type EvaluationOperator = '$text' | '$expr' | '$in' | '$nin' | '$between';
+export declare type SpatialOperator = '$geoIntersects' | '$geoWithin' | '$near' | '$nearSphere' | '$box' | '$center' | '$centerSphere' | '$geometry' | '$maxDistance' | '$minDistance' | '$polygon';
+export declare type FormatOperator = '$format' | '$arguments' | '$as';
+export declare type FnCallOperator = '$fnCall';
+export declare const FnCallPrefix = "$fnCall";
+export declare const LogicOperators: string[];
+export declare const ComparisonOperators: string[];
+export declare const ElementOperators: string[];
+export declare const EvaluationOperators: string[];
+export declare const SpatialOperators: string[];
+export declare const FormatOperators: string[];
