@@ -8,6 +8,7 @@ import { Projection } from '../types/Projection';
 import { Query } from '../types/Query';
 import { Sort } from '../types/Sort';
 import { GroupBy } from '../types/GroupBy';
+import { PrimaryGeneratedColumnType, SimpleColumnType } from '../DataType';
 
 /**
  * Driver organizes TypeORM communication with specific database management system.
@@ -66,6 +67,9 @@ export abstract class Driver {
 
 
     abstract getTransactionById(id: string): Txn
+
+    
+    abstract getPrimaryKeyType(): PrimaryGeneratedColumnType
 
 
     abstract create({ entity, data, txn }:{

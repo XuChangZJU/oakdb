@@ -40,14 +40,14 @@ export interface EntityConfig {
     removePhysically?: boolean;
 }
 
-export type UniqConstraints = string[];
+// export type UniqConstraints = string[];
 
 export interface Entity {
     title: string;
     storageName?: string,
     comment?: string,
     attributes: Attributes;
-    uniqConstrants?: UniqConstraints[];
+    uniqConstrants?: string[][];
     indexes?: Index[];
     config?: EntityConfig;
 }

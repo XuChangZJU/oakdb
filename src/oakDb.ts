@@ -63,7 +63,30 @@ export class OakDb extends Warden {
             (entity) => {
                 const { attributes, config, indexes } = schema[entity];
 
-                assign(attributes, {
+                const foreignKeyColumns = {};
+                const foreignKeyIndexes: Index[] = [];
+                Object.keys(attributes).forEach(
+                    (attr: string) => {
+                        const { type } = attributes[attr];
+                        if (type === 'ref') {
+                            Object.assign(foreignKeyColumns, {
+                                [`${attributes[attr].ref}Id`]: {
+                                    type: this.driver.getPrimaryKeyType(),
+                                    display: {
+                                        header: `${attributes[attr].ref}Id`,
+                                    },
+                                },
+                            });
+                            foreignKeyIndexes.push({
+                                name: `index_${attributes[attr].ref}Id`,
+                                columns: [{
+                                    name: `${attributes[attr].ref}Id`,                                    
+                                }],                                
+                            });
+                        }
+                    }
+                );
+                Object.assign(attributes, foreignKeyColumns, {
                     '$$createAt$$': {
                         type: 'date',
                         notNull: true,
@@ -78,7 +101,16 @@ export class OakDb extends Warden {
                             header: '更新时间',
                         },
                     },
+                    'id': {
+                        type: this.driver.getPrimaryKeyType(),
+                        notNull: true,
+                        display: {
+                            header: '主键',
+                            weight: 200,
+                        },
+                    },
                 });
+                
                 const indexCreateAt: Index = {
                     name: `index_createAt`,
                     columns: [{
@@ -94,10 +126,13 @@ export class OakDb extends Warden {
                 if (indexes) {
                     indexes.push(indexCreateAt);
                     indexes.push(indexUpdateAt);
+                    Object.assign(schema[entity], {
+                        indexes: indexes.concat(foreignKeyIndexes),
+                    });             
                 }
                 else {
                     assign(schema[entity], {
-                        indexes: [indexCreateAt, indexUpdateAt],
+                        indexes: foreignKeyIndexes.concat([indexCreateAt, indexUpdateAt]),
                     });
                 }
 
@@ -136,26 +171,21 @@ export class OakDb extends Warden {
         Object.keys(schema).forEach(
             (entity) => {
                 let createUuid = false;
+                let checkNotNull: string[] = [];
                 const { attributes, config, uniqConstrants } = schema[entity];
                 if (attributes.hasOwnProperty('$$uuid$$')) {
                     createUuid = true;
                 }
+                for (let attr in attributes) {
+                    if (attributes[attr].notNull) {
+                        if (attributes[attr].type === 'ref') {
+                            checkNotNull.push(`${attr}Id`);
+                        }
+                    }
+                }
                 if (createUuid || uniqConstrants && uniqConstrants.length > 0) {
                     // create before trigger for insert action
-                    let name = `check insert value for ${entity}, includes`;
-                    if (createUuid) {
-                        name += ' uuid,';
-                    }
-                    if (uniqConstrants && uniqConstrants.length > 0) {
-                        name += ' check unique value for colunns combination: '
-                        uniqConstrants.forEach(
-                            (uc) => {
-                                name += ` (${uc.join(',')}),`;
-                            }
-                        );
-                    }
-                    name = name.slice(0, name.length - 1);
-                    name += '.';
+                    const name = `check insert value for ${entity}`;
 
                     const trigger: Trigger = {
                         name,
@@ -175,14 +205,29 @@ export class OakDb extends Warden {
                             }
                             if (uniqConstrants && uniqConstrants.length > 0) {
                                 for (let uc of uniqConstrants) {
-                                    const query = pick(data, uc);
+                                    const uc2 = uc.map(
+                                        (c) => {
+                                            if (attributes[c].type === 'ref') {
+                                                return `${c}Id`;
+                                            }
+                                            return c;
+                                        }
+                                    );
+                                    const query = pick(data, uc2);
                                     const count = await this.count({ entity, query, txn });
                                     if (count > 0) {
                                         throw ErrorCode.createError(ErrorCode.uniqueConstraintViolated, `unique constraint violated on ${uc.join(',')} of entity ${entity} on insert`);
                                     }
-                                    result = result + 1;
                                 }
 
+                            }
+                            if (checkNotNull.length > 0) {
+                                const nullAttr = checkNotNull.map(
+                                    (attr) => data && data[attr] === null
+                                );
+                                if (nullAttr) {
+                                    throw ErrorCode.createError(ErrorCode.notNullConstraintViolated, `not null constraint violated on ${nullAttr} of entity ${entity} on insert`);
+                                }
                             }
                             return result;
                         },
@@ -191,34 +236,32 @@ export class OakDb extends Warden {
                 }
 
                 if (uniqConstrants && uniqConstrants.length > 0) {
-                    let name = ` check unique value when update  ${entity} for colunns combination: `
-                    uniqConstrants.forEach(
-                        (uc, index) => {
-                            name += ` (${uc.join(',')}),`;
-                            if (index < uniqConstrants.length) {
-                                name += ',';
-                            }
-                            else {
-                                name += '.';
-                            }
-                        }
-                    );
+                    const name = ` check value when update  ${entity} `;
 
-                    const attributes = union.apply(null, uniqConstrants) as string[];                    
                     const trigger: Trigger = {
                         name,
                         entity,
                         action: 'update',
-                        attributes,
+                        attributes: union.apply(null, uniqConstrants) as string[],
                         before: true,
-                        fn: async ({ data, txn }: {
+                        fn: async ({ data, row, txn }: {
                             data?: Data,
+                            row?: Row,
                             txn?: Txn,
                         }): Promise<number> => {
+                            assert(data && row);
                             let result = 0;
                             if (uniqConstrants && uniqConstrants.length > 0) {
                                 for (let uc of uniqConstrants) {
-                                    const query = pick(data, uc);
+                                    const uc2 = uc.map(
+                                        (c) => {
+                                            if (attributes[c].type === 'ref') {
+                                                return `${c}Id`;
+                                            }
+                                            return c;
+                                        }
+                                    );
+                                    const query = assign(pick(row, uc2), pick(data, uc2));
                                     const count = await this.count({ entity, query, txn });
                                     if (count > 0) {
                                         throw ErrorCode.createError(ErrorCode.uniqueConstraintViolated, `unique constraint violated on ${uc.join(',')} of entity ${entity} on update`);
@@ -227,6 +270,15 @@ export class OakDb extends Warden {
                                 }
 
                             }
+                            if (checkNotNull.length > 0) {
+                                const nullAttr = checkNotNull.map(
+                                    (attr) => data && data[attr] === null
+                                );
+                                if (nullAttr) {
+                                    throw ErrorCode.createError(ErrorCode.notNullConstraintViolated, `not null constraint violated on ${nullAttr} of entity ${entity} on update`);
+                                }
+                            }
+                            return result;
                             return result;
                         },
                     };

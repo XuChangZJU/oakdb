@@ -1,6 +1,6 @@
 import { Driver } from './Driver';
 import { ConnectionOptions } from '../source/Source';
-import { DataType } from '../DataType';
+import { DataType, PrimaryGeneratedColumnType } from '../DataType';
 import { DataTypeDefaults, DataTypeParams } from '../DataTypeDefaults';
 import { Schema, Attribute, Column, Index } from '../Schema';
 import { Data, Result, Row, Value } from '../types/Result';
@@ -55,59 +55,15 @@ export class MySQL extends Driver {
         this.transactions = {};
     }
 
+    getPrimaryKeyType(): PrimaryGeneratedColumnType {
+        return 'bigint';
+    }
+
     /**
      * 为所有的ref类型创建`${ref}Id`列，并创建外键的索引
      */
     private addForeignKeyColumns(schema: Schema) {
-        Object.keys(schema).forEach(
-            (entity: string) => {
-                const foreignKeyColumns = {};
-                const { attributes, indexes } = schema[entity];
-                const foreignKeyIndexes: Index[] = [];
-                Object.keys(attributes).forEach(
-                    (attr: string) => {
-                        const { type } = attributes[attr];
-                        if (type === 'ref') {
-                            Object.assign(foreignKeyColumns, {
-                                [`${attributes[attr].ref}Id`]: {
-                                    type: 'bigint',
-                                    display: {
-                                        header: `${attributes[attr].ref}Id`,
-                                    },
-                                },
-                            });
-                            foreignKeyIndexes.push({
-                                name: `index_${attributes[attr].ref}Id`,
-                                columns: [{
-                                    name: `${attributes[attr].ref}Id`,                                    
-                                }],                                
-                            });
-                        }
-                    }
-                );
-                Object.assign(attributes, foreignKeyColumns, {                    
-                    'id': {
-                        type: 'bigint',
-                        notNull: true,
-                        display: {
-                            header: '主键',
-                            weight: 200,
-                        },
-                    },
-                });
-                if (!indexes) {
-                    assert(false);  // 有createAt和updateAt，应该跑不到这里
-                    Object.assign(schema[entity], {
-                        indexes: foreignKeyIndexes,
-                    });
-                }
-                else {
-                    Object.assign(schema[entity], {
-                        indexes: indexes.concat(foreignKeyIndexes),
-                    });                    
-                }                
-            }
-        );
+                
     }
 
     async connect(): Promise<void> {

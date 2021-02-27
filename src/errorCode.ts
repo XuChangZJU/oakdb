@@ -7,6 +7,7 @@ export const ErrorCode = {
     sortAttrUnexisted: 150001,
     dataFormatError: 150002,
     uniqueConstraintViolated: 150003,
+    notNullConstraintViolated: 150004,
 
     unsupportedYet: 200000,
 
