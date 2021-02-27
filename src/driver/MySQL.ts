@@ -15,6 +15,7 @@ import { LogicQuery, PlainQuery, Query } from '../types/Query';
 import { Sort } from '../types/Sort';
 import { GroupBy } from '../types/GroupBy';
 import { ErrorCode } from '../errorCode';
+import { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 function convertGeoTextToObject(geoText: string): object {
     if (geoText.startsWith('POINT')) {
@@ -63,7 +64,7 @@ export class MySQL extends Driver {
      * 为所有的ref类型创建`${ref}Id`列，并创建外键的索引
      */
     private addForeignKeyColumns(schema: Schema) {
-                
+
     }
 
     async connect(): Promise<void> {
@@ -181,6 +182,25 @@ export class MySQL extends Driver {
         return unfoldRow(result);
     }
 
+    static ERR_DICT: {
+        [name: string]: number;
+    } = {
+        1062: ErrorCode.uniqueConstraintViolated,
+        1205: ErrorCode.lockWaitTimeout,
+        1213: ErrorCode.deadlockDetected,
+    }
+
+    translateToOakError(err: {
+        errno: number,
+        sqlMessage: string,
+    }): Error {
+        const code = MySQL.ERR_DICT[err.errno];
+        if (code) {
+            return ErrorCode.createError(code, err.sqlMessage);
+        }
+        return ErrorCode.createError(ErrorCode.databaseError, err.sqlMessage);
+    }
+
     async exec(sql: string, txn?: Txn): Promise<any> {
         const { NODE_ENV } = process.env;
         if (NODE_ENV && NODE_ENV.toLowerCase() === 'dev') {
@@ -192,9 +212,12 @@ export class MySQL extends Driver {
             
             result = await new Promise(
                 (resolve, reject) => {
-                    connection.query(sql, (err: Error, result: any, fields: any) => {
-                        if (err) {
-                            return reject(err);
+                    connection.query(sql, (err: {
+                        errno: number,
+                        sqlMessage: string,
+                    }, result: any, fields: any) => {
+                        if (err) {                            ;
+                            return reject(this.translateToOakError(err));
                         }
     
                         return resolve(result);
@@ -209,18 +232,11 @@ export class MySQL extends Driver {
                     //  console.log(sql);
                     //}
                     this.connectionPool.query(sql, (err: {
-                        errno?: number,
-                        sqlMessage?: string,
+                        errno: number,
+                        sqlMessage: string,
                     }, result: any, fields: any) => {
                         if (err) {                            ;
-                            switch(err.errno) {
-                                case 1062: {
-                                    return reject(ErrorCode.createError(ErrorCode.uniqueConstraintViolated, err.sqlMessage as string));
-                                }
-                                default: {
-                                    return reject(ErrorCode.createError(ErrorCode.databaseUnknownError, err.sqlMessage as string));
-                                }
-                            }
+                            return reject(this.translateToOakError(err));
                         }
     
                         return resolve(result);

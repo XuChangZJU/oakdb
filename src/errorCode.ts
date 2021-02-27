@@ -1,13 +1,15 @@
 import { assign } from "lodash";
 
 export const ErrorCode = {
-    databaseUnknownError: 1000,
-    volatileTriggerUncompleted: 1001,
+    databaseError: 1000,
 
     sortAttrUnexisted: 150001,
     dataFormatError: 150002,
     uniqueConstraintViolated: 150003,
     notNullConstraintViolated: 150004,
+    volatileTriggerUncompleted: 150005,
+    deadlockDetected: 150006,
+    lockWaitTimeout: 150007,
 
     unsupportedYet: 200000,
 
