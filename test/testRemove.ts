@@ -85,9 +85,10 @@ describe('test remove', function() {
                 });
             },
             triggerEntity: 'homework',
-            triggerCondition: async ({ row }) => {
+            triggerCondition: async ({ row }) => {                
+                const { id } = row as Row;
                 return {
-                    userId: (row as Row).id,
+                    userId: id as string | number,
                 };
             },
             triggerProjection: {

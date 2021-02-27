@@ -5,6 +5,8 @@ import { OakDb } from '../src/oakDb';
 import { schemaTestCreate } from './defs/schema';
 import { mysql } from './defs/source';
 import { initOakDbInstance, disconnectOakDbInstance } from './methods/init';
+import { assert } from 'console';
+import { ErrorCode } from '../src/errorCode';
 
 describe('test insert', function() {
     this.timeout(100000);
@@ -53,7 +55,41 @@ describe('test insert', function() {
             await oakDb.rollbackTransaction(txn);
             throw err;
         }
+    });
 
+    it ('test insert unique violation', async () => {
+        await oakDb.create({
+            entity: 'shop',
+            data: {
+                location: {
+                    type: 'Point',
+                    coordinates: [120, 30],
+                },
+                name: 'aaa',
+                data: {
+                    price: 'cheap',
+                },
+            },
+        });
+
+        try {
+            await oakDb.create({
+                entity: 'shop',
+                data: {
+                    location: {
+                        type: 'Point',
+                        coordinates: [121, 31],
+                    },
+                    name: 'aaa',
+                    data: {
+                        price: 'expensive',
+                    },
+                },
+            });
+        } catch(err) {
+            console.error(err);
+            assert(err.code === ErrorCode.uniqueConstraintViolated);
+        }
     });
 
     it ('test function', async () => {

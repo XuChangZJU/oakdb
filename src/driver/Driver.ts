@@ -80,7 +80,7 @@ export abstract class Driver {
         txn?: Txn,
     }): Promise<Row[]>
 
-    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: { 
+    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: { 
         entity: string; 
         projection?: Projection | undefined; 
         query?: Query | undefined; 
@@ -89,8 +89,16 @@ export abstract class Driver {
         txn?: Txn | undefined; 
         forUpdate?: boolean;
         sort?: Sort;
-        groupBy?: GroupBy;
     }): Promise<Row[]>;
+
+    abstract stat({ entity, projection, query, txn, groupBy, sort}: {
+        entity: string; 
+        projection?: Projection | undefined; 
+        query?: Query | undefined; 
+        txn?: Txn | undefined; 
+        groupBy?: GroupBy;
+        sort?: Sort;
+    }): Promise<Result[]>;
 
     abstract updateById({ entity, data, id, txn }: {
         entity: string,

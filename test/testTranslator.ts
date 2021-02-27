@@ -1,6 +1,6 @@
 import { Schema } from '../src/Schema';
 import { Source } from '../src/source/Source';
-import { OakDb } from '../src/index';
+import { OakDb } from '../src/oakDb';
 
 import { schemaTestCreate } from './defs/schema';
 import { mysql } from './defs/source';

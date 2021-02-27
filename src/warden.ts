@@ -193,7 +193,7 @@ export abstract class Warden {
     }
     private async doTrigger({ trigger, txn, row, data, context }: {
         trigger: Trigger,
-        txn: Txn,
+        txn?: Txn,
         row?: Row,
         data?: Data;
         context?: object;
@@ -299,7 +299,7 @@ export abstract class Warden {
         triggers: Trigger[];
         row?: Row;
         data?: Data;
-        txn: Txn;
+        txn?: Txn;
         context?: object;
     }):Promise<void> {
         if (triggers.length > 0) {
@@ -315,10 +315,10 @@ export abstract class Warden {
                         entity,
                     } = trigger;
     
-                    if (volatile) {
+                    if (volatile && txn) {
                         assert(row);
                         // 挂到事务提交时再做
-                        txn.on('committed', async () => {
+                        txn && txn.on('committed', async () => {
                             const txn = await this.startTransaction();
                             try {
                                 await this.doTriggerAgain({

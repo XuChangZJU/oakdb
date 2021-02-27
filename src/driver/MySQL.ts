@@ -118,7 +118,7 @@ export class MySQL extends Driver {
         await this.connectionPool.end();
     }
 
-    unfoldResult(entity: string, result: Row | Row[]): Row | Row[] {
+    unfoldResult(entity: string, result: Result | Result[]): Result | Result[] {
         const { schema } = this;
         function resolveAttribute(entity2: string, r: {
             [propName: string]: any;
@@ -134,7 +134,7 @@ export class MySQL extends Driver {
                 assert(attributes[attrHead] && attributes[attrHead].type === 'ref');
                 resolveAttribute(attributes[attrHead].ref as string, r[attrHead], attrTail, value);
             }
-            else {
+            else if (attributes[attr]) {
                 const { type } = attributes[attr];
                 switch (type) {
                     case 'date':
@@ -167,7 +167,7 @@ export class MySQL extends Driver {
                     }
                     case 'function': {
                         if (typeof value === 'string') {
-                            r[attr] = new Function(value)();
+                            r[attr] = new Function(` return ${value}`)();
                         }
                         else {
                             r[attr] = value;
@@ -178,6 +178,9 @@ export class MySQL extends Driver {
                         r[attr] = value;
                     }
                 }
+            }
+            else {
+                r[attr] = value;
             }
         }
 
@@ -203,7 +206,7 @@ export class MySQL extends Driver {
             return allowFormalize;
         }
 
-        function unfoldRow(r: Row): Row {
+        function unfoldRow(r: Result): Result {
             let result2 = {};
             for (let attr in r) {
                 const value = r[attr];
@@ -249,9 +252,19 @@ export class MySQL extends Driver {
                     // if (process.env.DEBUG) {
                     //  console.log(sql);
                     //}
-                    this.connectionPool.query(sql, (err: Error, result: any, fields: any) => {
-                        if (err) {
-                            return reject(err);
+                    this.connectionPool.query(sql, (err: {
+                        errno?: number,
+                        sqlMessage?: string,
+                    }, result: any, fields: any) => {
+                        if (err) {                            ;
+                            switch(err.errno) {
+                                case 1062: {
+                                    return reject(ErrorCode.createError(ErrorCode.uniqueConstraintViolated, err.sqlMessage as string));
+                                }
+                                default: {
+                                    return reject(ErrorCode.createError(ErrorCode.databaseUnknownError, err.sqlMessage as string));
+                                }
+                            }
                         }
     
                         return resolve(result);
@@ -384,7 +397,7 @@ export class MySQL extends Driver {
         entity: string,
         data: Data,
         txn?: Txn,
-    }): Promise<Result> {        
+    }): Promise<Row> {        
         const sql = this.translator.translateInsertRow(entity, [data]);
 
         const { insertId } = await this.exec(sql, txn);
@@ -413,7 +426,7 @@ export class MySQL extends Driver {
         );
     }
     
-    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
+    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -422,7 +435,6 @@ export class MySQL extends Driver {
         txn?: Txn;
         sort?: Sort;
         forUpdate?: boolean;
-        groupBy?: GroupBy;
     }): Promise<Row[]> {
         const sql = this.translator.translateSelect({
             entity,
@@ -432,12 +444,30 @@ export class MySQL extends Driver {
             count,
             sort,
             forUpdate,
-            groupBy,
         });
 
         const result  =  await this.exec(sql, txn);
-
         return this.unfoldResult(entity, result) as Row[];
+    }
+
+    async stat({ entity, projection, query, txn, groupBy, sort}: {
+        entity: string; 
+        projection?: Projection | undefined; 
+        query?: Query | undefined; 
+        txn?: Txn | undefined; 
+        groupBy?: GroupBy;
+        sort?: Sort;
+    }): Promise<Result[]> {
+        const sql = this.translator.translateSelect({
+            entity,
+            projection,
+            query,
+            groupBy,
+            sort,
+        });
+
+        const result  =  await this.exec(sql, txn);
+        return this.unfoldResult(entity, result) as Result[];
     }
 
     async updateById({ entity, data, id, txn }: {

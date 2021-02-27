@@ -402,7 +402,7 @@ export class MySQLTranslator extends SqlTranslator {
                 return `'${JSON.stringify(value)}'`;
             }
             case 'function': {
-                return `' return ${value.toString()}'`;
+                return `'${value.toString()}'`;
             }
             default: {
                 if (typeof value === 'string') {

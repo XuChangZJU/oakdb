@@ -9,4 +9,4 @@ export interface Row {
     [attribute: string]: any;
 }
 
-export type Result = Row;
+export type Result = Row | Data;

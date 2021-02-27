@@ -1,6 +1,6 @@
 import { Schema } from '../src/Schema';
 import { Source } from '../src/source/Source';
-import { OakDb } from '../src/index';
+import { ErrorCode, OakDb } from '../src/index';
 
 import { schemaTestCreate } from './defs/schema';
 import { mysql } from './defs/source';
@@ -143,6 +143,39 @@ describe('test update', function() {
         }
 
         await disconnectOakDbInstance(oakDb);
+    });
+
+
+    it ('test unique constraint on update', async () => {
+        try {
+            const updated = await oakDb.update({
+                entity: 'user',
+                id: user.id,
+                data: {
+                    name: 'wkj',
+                    born: new Date('1989-11-10'),
+                },
+            });
+        } catch(err) {
+            // console.error(err);
+            assert(err.code === ErrorCode.uniqueConstraintViolated);
+        }
+
+        await oakDb.removeMany({
+            entity: 'user',
+            query: {
+                name: 'wkj',                
+            }
+        });
+        const updated = await oakDb.update({
+            entity: 'user',
+            id: user.id,
+            data: {
+                name: 'wkj',
+                born: new Date('1989-11-10'),
+            },
+        });
+        console.log(updated);
     });
 
     after(async() => {

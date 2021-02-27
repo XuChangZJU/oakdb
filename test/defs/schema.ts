@@ -27,6 +27,7 @@ export const schemaTestCreate: Schema = {
         config: {
             hasUuid: true,
         },
+        uniqConstrants: [['name', 'born']],
     },
     homework: {
         title: '作业',
