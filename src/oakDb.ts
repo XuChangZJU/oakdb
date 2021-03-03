@@ -42,8 +42,6 @@ export class OakDb extends Warden {
         super(schema2, log);
         this.schema = schema2;
         this.source = source;
-        this.addBuiltInColumns();
-        this.createDefaultTriggers();
 
         const { name, options } = source;
         switch (name.toLowerCase()) {
@@ -55,6 +53,9 @@ export class OakDb extends Warden {
                 throw new Error('暂时不支持的数据源');
             }
         }
+
+        this.addBuiltInColumns();
+        this.createDefaultTriggers();
     }
 
     addBuiltInColumns(): void {
