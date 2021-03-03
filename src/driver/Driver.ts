@@ -33,7 +33,7 @@ export abstract class Driver {
 
     constructor(options: ConnectionOptions, schema: Schema) {
         this.options = options;
-        this.schema = cloneDeep(schema);
+        this.schema = schema;
     }
 
     /**
