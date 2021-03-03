@@ -37,7 +37,7 @@ export interface Entity {
     storageName?: string;
     comment?: string;
     attributes: Attributes;
-    uniqConstrants?: string[][];
+    uniqueConstraints?: string[][];
     indexes?: Index[];
     config?: EntityConfig;
 }

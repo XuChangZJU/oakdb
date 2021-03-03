@@ -172,7 +172,7 @@ export class OakDb extends Warden {
             (entity) => {
                 let createUuid = false;
                 let checkNotNull: string[] = [];
-                const { attributes, config, uniqConstrants } = schema[entity];
+                const { attributes, config, uniqueConstraints } = schema[entity];
                 if (attributes.hasOwnProperty('$$uuid$$')) {
                     createUuid = true;
                 }
@@ -183,7 +183,7 @@ export class OakDb extends Warden {
                         }
                     }
                 }
-                if (createUuid || uniqConstrants && uniqConstrants.length > 0) {
+                if (createUuid || uniqueConstraints && uniqueConstraints.length > 0) {
                     // create before trigger for insert action
                     const name = `check insert value for ${entity}`;
 
@@ -203,8 +203,8 @@ export class OakDb extends Warden {
                                 });
                                 result = result + 1;
                             }
-                            if (uniqConstrants && uniqConstrants.length > 0) {
-                                for (let uc of uniqConstrants) {
+                            if (uniqueConstraints && uniqueConstraints.length > 0) {
+                                for (let uc of uniqueConstraints) {
                                     const uc2 = uc.map(
                                         (c) => {
                                             if (attributes[c].type === 'ref') {
@@ -235,14 +235,14 @@ export class OakDb extends Warden {
                     this.registerTrigger(trigger);
                 }
 
-                if (uniqConstrants && uniqConstrants.length > 0) {
+                if (uniqueConstraints && uniqueConstraints.length > 0) {
                     const name = ` check value when update  ${entity} `;
 
                     const trigger: Trigger = {
                         name,
                         entity,
                         action: 'update',
-                        attributes: union.apply(null, uniqConstrants) as string[],
+                        attributes: union.apply(null, uniqueConstraints) as string[],
                         before: true,
                         fn: async ({ data, row, txn }: {
                             data?: Data,
@@ -251,8 +251,8 @@ export class OakDb extends Warden {
                         }): Promise<number> => {
                             assert(data && row);
                             let result = 0;
-                            if (uniqConstrants && uniqConstrants.length > 0) {
-                                for (let uc of uniqConstrants) {
+                            if (uniqueConstraints && uniqueConstraints.length > 0) {
+                                for (let uc of uniqueConstraints) {
                                     const uc2 = uc.map(
                                         (c) => {
                                             if (attributes[c].type === 'ref') {
