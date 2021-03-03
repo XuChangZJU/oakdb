@@ -1,5 +1,6 @@
 import { Driver } from './Driver';
 import { ConnectionOptions } from '../source/Source';
+import { PrimaryGeneratedColumnType } from '../DataType';
 import { Schema } from '../Schema';
 import { Data, Result, Row } from '../types/Result';
 import { Txn, TxnOption } from '../types/Txn';
@@ -17,13 +18,21 @@ export declare class MySQL extends Driver {
     };
     readonly translator: MySQLTranslator;
     constructor(options: ConnectionOptions, schema: Schema);
+    getPrimaryKeyType(): PrimaryGeneratedColumnType;
     /**
      * 为所有的ref类型创建`${ref}Id`列，并创建外键的索引
      */
     private addForeignKeyColumns;
     connect(): Promise<void>;
     disconnect(): Promise<void>;
-    unfoldResult(entity: string, result: Row | Row[]): Row | Row[];
+    unfoldResult(entity: string, result: Result | Result[]): Result | Result[];
+    static ERR_DICT: {
+        [name: string]: number;
+    };
+    translateToOakError(err: {
+        errno: number;
+        sqlMessage: string;
+    }): Error;
     exec(sql: string, txn?: Txn): Promise<any>;
     init(replace: boolean, excludes?: string[]): Promise<void>;
     destroy(truncate?: boolean, excludes?: string[]): Promise<void>;
@@ -35,13 +44,13 @@ export declare class MySQL extends Driver {
         entity: string;
         data: Data;
         txn?: Txn;
-    }): Promise<Result>;
+    }): Promise<Row>;
     createMany({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
     }): Promise<Row[]>;
-    find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
+    find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -50,8 +59,15 @@ export declare class MySQL extends Driver {
         txn?: Txn;
         sort?: Sort;
         forUpdate?: boolean;
-        groupBy?: GroupBy;
     }): Promise<Row[]>;
+    stat({ entity, projection, query, txn, groupBy, sort }: {
+        entity: string;
+        projection?: Projection | undefined;
+        query?: Query | undefined;
+        txn?: Txn | undefined;
+        groupBy?: GroupBy;
+        sort?: Sort;
+    }): Promise<Result[]>;
     updateById({ entity, data, id, txn }: {
         entity: string;
         data: Data;

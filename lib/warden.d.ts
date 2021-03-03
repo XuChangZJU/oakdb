@@ -84,7 +84,7 @@ export declare abstract class Warden {
         triggers: Trigger[];
         row?: Row;
         data?: Data;
-        txn: Txn;
+        txn?: Txn;
         context?: object;
     }): Promise<void>;
     /**

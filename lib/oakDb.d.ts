@@ -1,6 +1,6 @@
 import { Schema } from './Schema';
 import { Source } from './source/Source';
-import { Data, Row } from './types/Result';
+import { Data, Result, Row } from './types/Result';
 import { Txn, TxnOption } from './types/Txn';
 import { Driver } from './driver/Driver';
 import { Warden } from './warden';
@@ -68,7 +68,13 @@ export declare class OakDb extends Warden {
         txn?: Txn;
     }, batch?: boolean, context?: object): Promise<Row[]>;
     addDeleteAtColumnCheck(query: Query, entity: string): void;
-    find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
+    /**
+     * select entity data
+     * if there exists some aggregation fncall in projection, please use stat
+     * @param param0
+     * @param context
+     */
+    find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -77,8 +83,15 @@ export declare class OakDb extends Warden {
         txn?: Txn;
         forUpdate?: boolean;
         sort?: Sort;
-        groupBy?: GroupBy;
     }, context?: object): Promise<Row[]>;
+    stat({ entity, projection, query, txn, sort, groupBy }: {
+        entity: string;
+        projection?: Projection;
+        query?: Query;
+        txn?: Txn;
+        sort?: Sort;
+        groupBy?: GroupBy;
+    }, context?: object): Promise<Result[]>;
     findById({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;

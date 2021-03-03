@@ -1,11 +1,12 @@
 import { ConnectionOptions } from '../source/Source';
 import { Schema } from '../Schema';
-import { Data, Row } from '../types/Result';
+import { Data, Result, Row } from '../types/Result';
 import { Txn, TxnOption } from '../types/Txn';
 import { Projection } from '../types/Projection';
 import { Query } from '../types/Query';
 import { Sort } from '../types/Sort';
 import { GroupBy } from '../types/GroupBy';
+import { PrimaryGeneratedColumnType } from '../DataType';
 /**
  * Driver organizes TypeORM communication with specific database management system.
  */
@@ -37,6 +38,7 @@ export declare abstract class Driver {
     abstract commitTransaction(txn: Txn): Promise<void>;
     abstract rollbackTransaction(txn: Txn): Promise<void>;
     abstract getTransactionById(id: string): Txn;
+    abstract getPrimaryKeyType(): PrimaryGeneratedColumnType;
     abstract create({ entity, data, txn }: {
         entity: string;
         data: Data;
@@ -47,7 +49,7 @@ export declare abstract class Driver {
         data: Data[];
         txn?: Txn;
     }): Promise<Row[]>;
-    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate, groupBy }: {
+    abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection | undefined;
         query?: Query | undefined;
@@ -56,8 +58,15 @@ export declare abstract class Driver {
         txn?: Txn | undefined;
         forUpdate?: boolean;
         sort?: Sort;
-        groupBy?: GroupBy;
     }): Promise<Row[]>;
+    abstract stat({ entity, projection, query, txn, groupBy, sort }: {
+        entity: string;
+        projection?: Projection | undefined;
+        query?: Query | undefined;
+        txn?: Txn | undefined;
+        groupBy?: GroupBy;
+        sort?: Sort;
+    }): Promise<Result[]>;
     abstract updateById({ entity, data, id, txn }: {
         entity: string;
         data: Data;

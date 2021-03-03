@@ -6,4 +6,4 @@ export interface Row {
     id: string | number;
     [attribute: string]: any;
 }
-export declare type Result = Row;
+export declare type Result = Row | Data;
