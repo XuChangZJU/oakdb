@@ -46,7 +46,7 @@ export class OakDb extends Warden {
         const { name, options } = source;
         switch (name.toLowerCase()) {
             case 'mysql': {
-                this.driver = new MySQLDriver(options, schema2);
+                this.driver = new MySQLDriver(options, schema2, log);
                 break;
             }
             default: {

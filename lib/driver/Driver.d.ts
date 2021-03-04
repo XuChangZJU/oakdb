@@ -16,13 +16,14 @@ export declare abstract class Driver {
      */
     readonly options: ConnectionOptions;
     readonly schema: Schema;
+    readonly log: (message: string) => void;
     /**
      * Master database used to perform all write queries.
      *
      * todo: probably move into query runner.
      */
     database?: string;
-    constructor(options: ConnectionOptions, schema: Schema);
+    constructor(options: ConnectionOptions, schema: Schema, log?: (message: string) => void);
     /**
      * Performs connection to the database.
      * Depend on driver type it may create a connection pool.

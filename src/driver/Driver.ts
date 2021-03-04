@@ -22,6 +22,8 @@ export abstract class Driver {
 
     readonly schema: Schema;
 
+    readonly log: (message: string) => void;
+
 
     /**
      * Master database used to perform all write queries.
@@ -31,9 +33,10 @@ export abstract class Driver {
     database?: string;
 
 
-    constructor(options: ConnectionOptions, schema: Schema) {
+    constructor(options: ConnectionOptions, schema: Schema, log?: (message: string) => void) {
         this.options = options;
         this.schema = schema;
+        this.log = log || console.log;
     }
 
     /**

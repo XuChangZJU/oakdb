@@ -17,7 +17,7 @@ export declare class MySQL extends Driver {
         [propName: string]: Txn;
     };
     readonly translator: MySQLTranslator;
-    constructor(options: ConnectionOptions, schema: Schema);
+    constructor(options: ConnectionOptions, schema: Schema, log?: (message: string) => void);
     getPrimaryKeyType(): PrimaryGeneratedColumnType;
     /**
      * 为所有的ref类型创建`${ref}Id`列，并创建外键的索引

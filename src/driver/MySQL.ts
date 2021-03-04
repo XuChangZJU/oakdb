@@ -46,8 +46,8 @@ export class MySQL extends Driver {
     
     readonly translator: MySQLTranslator;
 
-    constructor(options: ConnectionOptions, schema: Schema) {
-        super(options, schema);
+    constructor(options: ConnectionOptions, schema: Schema, log?:(message: string) => void) {
+        super(options, schema, log);
         const { database } = options;
         this.database = database;
         this.mysql = require('mysql');
@@ -204,7 +204,7 @@ export class MySQL extends Driver {
     async exec(sql: string, txn?: Txn): Promise<any> {
         const { NODE_ENV } = process.env;
         if (NODE_ENV && NODE_ENV.toLowerCase() === 'dev') {
-            console.log(sql);
+            this.log(sql);
         }
         let result;
         if (txn) {
@@ -216,7 +216,8 @@ export class MySQL extends Driver {
                         errno: number,
                         sqlMessage: string,
                     }, result: any, fields: any) => {
-                        if (err) {                            ;
+                        if (err) {
+                            this.log(`sql exec err: ${sql}`);
                             return reject(this.translateToOakError(err));
                         }
     
