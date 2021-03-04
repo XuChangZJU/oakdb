@@ -124,7 +124,7 @@ export class MySQL extends Driver {
                     }
                     case 'function': {
                         if (typeof value === 'string') {
-                            r[attr] = new Function(` return ${value}`)();
+                            r[attr] = new Function(` return ${Buffer.from(value, 'base64').toString()}`)();
                         }
                         else {
                             r[attr] = value;

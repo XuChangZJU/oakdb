@@ -94,6 +94,7 @@ describe('test insert', function() {
 
     it ('test function', async () => {
         async function asyncFunction(x: number, y: number): Promise<number> {
+            console.log('aaaaa');
             return new Promise(
                 (resolve) => {
                     setTimeout(() => resolve(x + y), 2000);

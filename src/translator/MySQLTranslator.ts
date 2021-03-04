@@ -402,7 +402,7 @@ export class MySQLTranslator extends SqlTranslator {
                 return `'${JSON.stringify(value)}'`;
             }
             case 'function': {
-                return `'${value.toString()}'`;
+                return `'${Buffer.from(value.toString()).toString('base64')}'`;
             }
             default: {
                 if (typeof value === 'string') {
