@@ -36,12 +36,12 @@ export abstract class SqlTranslator extends Translator {
         const { schema } = this;
         const { attributes, storageName = entity } = schema[entity];
         
-        let sql = `insert into ${storageName}(`;
+        let sql = `insert into \`${storageName}\`(`;
 
         const attrs = Object.keys(data[0]);
         attrs.forEach(
             (attr, idx) => {
-                sql += ` ${attr}`;
+                sql += ` \`${attr}\``;
                 if (idx < Object.keys(data[0]).length - 1) {
                     sql += ',';
                 }
