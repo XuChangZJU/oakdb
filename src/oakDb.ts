@@ -182,6 +182,9 @@ export class OakDb extends Warden {
                         if (attributes[attr].type === 'ref') {
                             checkNotNull.push(`${attr}Id`);
                         }
+                        else {
+                            checkNotNull.push(attr);
+                        }
                     }
                 }
                 if (createUuid || uniqueConstraints && uniqueConstraints.length > 0) {
@@ -223,7 +226,7 @@ export class OakDb extends Warden {
 
                             }
                             if (checkNotNull.length > 0) {
-                                const nullAttr = checkNotNull.map(
+                                const nullAttr = checkNotNull.find(
                                     (attr) => data && data[attr] === null
                                 );
                                 if (nullAttr) {
