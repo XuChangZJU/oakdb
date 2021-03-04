@@ -41,12 +41,12 @@ export abstract class Warden {
     
     static ActionAlias = {
         'insert': 'insert',
-        'create': 'create',
+        'create': 'insert',
         'update': 'update',
         'remove': 'remove',
         'delete': 'remove',
         'read': 'read',
-        'select': 'select',
+        'select': 'read',
     };
 
     constructor(schema: Schema, log?: (message: string) => void) {
