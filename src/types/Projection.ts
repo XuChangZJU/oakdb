@@ -1,4 +1,7 @@
 import { FnCall } from './Query';
+
+export type ProjectionValue = 1 | string | FnCall | Projection;
+
 export interface Projection {
-    [attrName: string]: 1 | string | FnCall | Projection;
+    [attrName: string]: ProjectionValue;
 }
