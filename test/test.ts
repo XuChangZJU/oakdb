@@ -1,4 +1,10 @@
 import { LogicQuery } from '../src/types/Query';
+import { replace } from 'lodash';
+
+const test = 'a/b/c/d';
+
+const test2 = test.replace(/\//g, '.');
+console.log(test2);
 /* 
 const query: LogicQuery = {
     $or: [{

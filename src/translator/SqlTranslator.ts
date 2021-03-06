@@ -6,7 +6,7 @@ import { Projection } from '../types/Projection';
 import { FnCall, FullTextSearchQuery, LogicQuery, PlainQuery, PrimitiveValue, Query } from '../types/Query';
 import { ComparisonOperator, ComparisonOperators, ElementOperator, ElementOperators, EvaluationOperator, EvaluationOperators, LogicOperator, LogicOperators, SpatialOperators } from '../types/Operator';
 import { TranslateResult } from './translate-result/TranslateResult';
-import { assign, merge } from 'lodash';
+import { assign, merge, unset } from 'lodash';
 import { Sort, SortAttr, SortNode } from '../types/Sort';
 import { assert } from 'console';
 import { ErrorCode } from '../errorCode';
@@ -74,8 +74,8 @@ export abstract class SqlTranslator extends Translator {
         return sql;
     }
 
-    private getDefaultProjection(entity: string, noExpand?:boolean): Projection {
-        const projection: Projection = {};
+    private formalizeProjection(entity: string, projection?: Projection, noExpand?:boolean): Projection {        
+        const projection2: Projection = projection || {};
         const { schema } = this;
 
         const { attributes } = schema[entity];
@@ -85,24 +85,25 @@ export abstract class SqlTranslator extends Translator {
                 if (!attr.match(/\$\$[\d|\D]+\$\$$/)) {     // omit metadata by default
                     const { type } = attributes[attr];
                     if (type === 'ref') {
-                        if (!noExpand) {
+                        if (!noExpand &&( !projection || projection[attr] || projection.hasOwnProperty('$all'))) {
                             const { ref } = attributes[attr];
-                            const projection2 = this.getDefaultProjection(ref as string, true);
-                            assign(projection, {
-                                [attr]: projection2,
+                            const projection3 = this.formalizeProjection(ref as string, projection && (projection[attr] as Projection), true);
+                            assign(projection2, {
+                                [attr]: projection3,
                             });
                         }
                     }
-                    else {
-                        assign(projection, {
+                    else if (!projection || projection.hasOwnProperty('$all')) {
+                        assign(projection2, {
                             [attr]: 1,
                         });
                     }
                 }
             }
         );
+        unset(projection2, '$all');
 
-        return projection;
+        return projection2;
     }
 
     /**
@@ -441,7 +442,7 @@ export abstract class SqlTranslator extends Translator {
             const { attributes } = schema[entity2];
             let projText = '';
 
-            let prefix = path.slice(2).replace('/', '.');
+            let prefix = path.slice(2).replace(/\//g, '.');
             Object.keys(projection2).forEach(
                 (attr, idx) => {
                     if (attr.toLowerCase().startsWith('$fncall')) {
@@ -599,7 +600,7 @@ export abstract class SqlTranslator extends Translator {
             const attr = Object.keys(sortAttr)[0];
             const alias = aliasDict[path];
             const { attributes } = schema[entity2];
-            let prefix = path.slice(2).replace('/', '.');
+            let prefix = path.slice(2).replace(/\//g, '.');
 
             if (attr.toLocaleLowerCase().startsWith('$fncall')) {
                 return this.translateFnCall(sortAttr[attr] as FnCall, alias, prefix);
@@ -640,7 +641,7 @@ export abstract class SqlTranslator extends Translator {
         sort?: Sort;
         groupBy?: GroupBy;
     }): TranslateResult {
-        const projection2 = projection || this.getDefaultProjection(entity);
+        const projection2 = this.formalizeProjection(entity, projection);
         if (sort){
             this.checkSortWithProjection(entity, projection2, sort);
         }

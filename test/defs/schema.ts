@@ -62,6 +62,17 @@ export const schemaTestCreate: Schema = {
             },
         }],
     },
+    city: {
+        title: '城市',
+        attributes: {
+            name: {
+                type: 'text',
+            },
+            description: {
+                type: 'text',
+            },
+        },
+    },
     shop: {
         title: '商店',
         attributes: {
@@ -78,6 +89,10 @@ export const schemaTestCreate: Schema = {
             },
             data: {
                 type: 'object',
+            },
+            city: {
+                type: 'ref',
+                ref: 'city',
             }
         },
         indexes: [{

@@ -1,3 +1,4 @@
+import { describe, it } from 'mocha';
 import { Schema } from '../src/Schema';
 import { Source } from '../src/source/Source';
 import { OakDb } from '../src/index';

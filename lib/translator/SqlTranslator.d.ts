@@ -14,7 +14,7 @@ export declare abstract class SqlTranslator extends Translator {
     abstract translateIndexFromCount(indexFrom: number, count: number): string;
     abstract translateForUpdate(): string;
     translateInsertRow(entity: string, data: Data[]): string;
-    private getDefaultProjection;
+    private formalizeProjection;
     /**
      * analyze the join relations in projection/query/sort
      * @param param0

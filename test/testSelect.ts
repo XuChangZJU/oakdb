@@ -1,3 +1,4 @@
+import { describe, it, before, after } from 'mocha';
 import { Schema } from '../src/Schema';
 import { Source } from '../src/source/Source';
 import { OakDb } from '../src/oakDb';
@@ -53,6 +54,13 @@ describe('test select', function() {
                 },
             });
 
+            const city = await oakDb.create({
+                entity: 'city',
+                data: {
+                    name: '杭州市',
+                    description: '非常美丽的城市',
+                },
+            });
             const shop = await oakDb.create({
                 entity: 'shop',
                 data: {
@@ -64,7 +72,8 @@ describe('test select', function() {
                     data: {
                         star: 5,
                         comment: 'so delicious!',
-                    }
+                    },
+                    cityId: city.id,
                 },
             });
             const { id: shopId } = shop;
@@ -127,6 +136,25 @@ describe('test select', function() {
         });
 
         console.log(JSON.stringify(shops));
+    });
+
+    it ('test select with $all', async () => {
+        const userShops = await oakDb.find({
+            entity: 'userShop',
+            projection: {
+                id: 1,
+                shopId: 1,
+                shop: {
+                    $all: 1,
+                    cityId: 1,
+                    city: {
+                        id: 1,
+                        name: 1,
+                    },
+                },
+            },
+        });
+        console.log(JSON.stringify(userShops));
     });
 
     after(async () => {
