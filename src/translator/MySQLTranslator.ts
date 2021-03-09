@@ -308,7 +308,7 @@ export class MySQLTranslator extends SqlTranslator {
                     sql += 'unique ';
                 }
                 if (defaultValue) {
-                    sql += `default ${defaultValue}`;
+                    sql += `default ${this.translateAttrValue(type, defaultValue)}`;
                 }
                 if (attr === 'id') {
                     sql += 'primary key auto_increment '
