@@ -110,7 +110,7 @@ describe('test update', function() {
         oakDb.registerTrigger(trigger);
         const txn = await oakDb.startTransaction();
         try {
-            const [ homework ] = await oakDb.find({
+            const [ homework ] = await oakDb.find<{ id: number, title: string }>({
                 entity: 'homework',
                 indexFrom: 0,
                 count: 1,
@@ -128,7 +128,7 @@ describe('test update', function() {
             });
             console.log(updateResult);
 
-            const homework2 = await oakDb.findById({
+            const homework2 = await oakDb.findById<{mark: number}>({
                 entity: 'homework',
                 id: homework.id,
                 txn,

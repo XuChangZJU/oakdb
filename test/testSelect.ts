@@ -24,7 +24,7 @@ describe('test select', function() {
                 },
                 txn,
             });
-            const user = await oakDb.create({
+            const user = await oakDb.create<{ id: number }>({
                 entity: 'user',
                 data: {
                     name: 'wkj',
@@ -54,14 +54,14 @@ describe('test select', function() {
                 },
             });
 
-            const city = await oakDb.create({
+            const city = await oakDb.create<{id: number}>({
                 entity: 'city',
                 data: {
                     name: '杭州市',
                     description: '非常美丽的城市',
                 },
             });
-            const shop = await oakDb.create({
+            const shop = await oakDb.create<{ id: number }>({
                 entity: 'shop',
                 data: {
                     location: {

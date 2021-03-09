@@ -27,8 +27,8 @@ export class OakDb extends Warden {
                 $as: 'cnt',
             }
         };
-        const [result] = await this.stat({ entity, projection, query, txn });
-        return result.cnt as number;
+        const [result] = await this.stat<{ cnt: number }>({ entity, projection, query, txn });
+        return result.cnt;
     }
 
     schema: Schema;
@@ -376,23 +376,23 @@ export class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    async create({ entity, data, txn }: {
+    async create<T>({ entity, data, txn }: {
         entity: string,
         data: Data,
         txn?: Txn,
-    }, context?: object): Promise<Row> {
+    }, context?: object): Promise<T> {
         await this.preInsert(entity, data, txn, context);
         const row = await this.driver.create({ entity, data, txn });
         await this.postInsert(entity, data, row, txn, context);
 
-        return row;
+        return row as unknown as T;
     }
 
-    async createMany({ entity, data, txn }: {
+    async createMany<T>({ entity, data, txn }: {
         entity: string,
         data: Data[],
         txn?: Txn,
-    }, batch?: boolean, context?: object): Promise<Row[]> {
+    }, batch?: boolean, context?: object): Promise<T[]> {
         if (batch) {
             for (let d of data) {
                 await this.preInsert(entity, d, txn, context);
@@ -402,34 +402,34 @@ export class OakDb extends Warden {
             for (let r of rows) {
                 await this.postInsert(entity, data[idx++], r, txn, context);
             }
-            return rows;
+            return rows as unknown as T[];
         }
 
         const result: Row[] = [];
         for (let d of data) {
             result.push(await this.create({ entity, data: d, txn }));
         }
-        return result;
+        return result as unknown as T[];
     }
 
     /**
      * 同create
      * @param param0 
      */
-    async insert({ entity, data, txn }: {
+    async insert<T>({ entity, data, txn }: {
         entity: string,
         data: Data,
         txn?: Txn,
-    }, context?: object): Promise<Row> {
-        return await this.create({ entity, data, txn }, context);
+    }, context?: object): Promise<T> {
+        return await this.create<T>({ entity, data, txn }, context);
     }
 
-    async insertMany({ entity, data, txn }: {
+    async insertMany<T>({ entity, data, txn }: {
         entity: string,
         data: Data[],
         txn?: Txn,
-    }, batch?: boolean, context?: object): Promise<Row[]> {
-        return this.createMany({ entity, data, txn }, batch, context);
+    }, batch?: boolean, context?: object): Promise<T[]> {
+        return this.createMany<T>({ entity, data, txn }, batch, context);
     }
 
     addDeleteAtColumnCheck(query: Query, entity: string): void {
@@ -473,7 +473,7 @@ export class OakDb extends Warden {
      * @param param0 
      * @param context 
      */
-    async find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
+    async find<T>({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -482,7 +482,7 @@ export class OakDb extends Warden {
         txn?: Txn;
         forUpdate?: boolean;
         sort?: Sort;
-    }, context?: object): Promise<Row[]> {
+    }, context?: object): Promise<T[]> {
         const { attributes } = this.schema[entity];
         let query2 = query;
         if (attributes.hasOwnProperty('$$deleteAt$$')) {
@@ -525,17 +525,17 @@ export class OakDb extends Warden {
                 }
             }
         }
-        return rows;
+        return rows as unknown as T[];
     }
 
-    async stat({ entity, projection, query, txn, sort, groupBy }: {
+    async stat<T>({ entity, projection, query, txn, sort, groupBy }: {
         entity: string;
         projection?: Projection;
         query?: Query;
         txn?: Txn;
         sort?: Sort;
         groupBy?: GroupBy;
-    }, context?: object): Promise<Result[]> {
+    }, context?: object): Promise<T[]> {
         const { attributes } = this.schema[entity];
         let query2 = query;
         if (attributes.hasOwnProperty('$$deleteAt$$')) {
@@ -559,16 +559,16 @@ export class OakDb extends Warden {
             txn,
             sort,
         });
-        return results;
+        return results as unknown as T[];
     }
 
 
-    async findById({ entity, projection, id, txn }: {
+    async findById<T>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }, context?: object): Promise<Row> {
+    }, context?: object): Promise<T> {
         const [row] = await this.driver.find({
             entity,
             projection,
@@ -593,7 +593,7 @@ export class OakDb extends Warden {
                 });
             }
         }
-        return row;
+        return row as unknown as T;
     }
 
     private async preUpdate(entity: string, data: Data, id?: string | number, row?: Row, txn?: Txn, context?: object): Promise<Row | undefined> {
@@ -650,13 +650,13 @@ export class OakDb extends Warden {
         }
     }
 
-    async update({ entity, data, id, row, txn }: {
+    async update<T>({ entity, data, id, row, txn }: {
         entity: string;
         data: Data;
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }, context?: object): Promise<Row> {
+    }, context?: object): Promise<T> {
         assert(id || row);
         const row2 = await this.preUpdate(entity, data, id, row, txn, context);
 
@@ -669,7 +669,8 @@ export class OakDb extends Warden {
 
         const rowNow = assign({}, row || row2, data);
         await this.postUpdate(entity, data, rowNow as Row, txn, context);
-        return result;
+
+        return result as unknown as T;
     }
 
     async updateMany({ entity, data, query, txn }: {
@@ -742,12 +743,12 @@ export class OakDb extends Warden {
         }
     }
 
-    async remove({ entity, id, row, txn }: {
+    async remove<T>({ entity, id, row, txn }: {
         entity: string;
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }, context?: object): Promise<Row> {
+    }, context?: object): Promise<T> {
         const {
             deletePhysically,
             row: row2,
@@ -766,7 +767,7 @@ export class OakDb extends Warden {
 
         await this.postRemove(entity, row2 as Row, txn, context);
 
-        return row || { id: id as string | number };
+        return (row || { id: id as string | number }) as unknown as T;
     }
 
     async removeMany({ entity, query, txn }: {

@@ -110,7 +110,7 @@ describe('test insert', function() {
 
         await oakDb.create({ entity: 'code', data: code });
 
-        const [ code2 ] = await oakDb.find({
+        const [ code2 ] = await oakDb.find<{ name: string; fn: Function }>({
             entity: 'code',            
         });
 
