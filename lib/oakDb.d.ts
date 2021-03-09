@@ -1,6 +1,6 @@
 import { Schema } from './Schema';
 import { Source } from './source/Source';
-import { Data, Result, Row } from './types/Result';
+import { Data, Row } from './types/Result';
 import { Txn, TxnOption } from './types/Txn';
 import { Driver } from './driver/Driver';
 import { Warden } from './warden';
@@ -43,30 +43,30 @@ export declare class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    create({ entity, data, txn }: {
+    create<T>({ entity, data, txn }: {
         entity: string;
         data: Data;
         txn?: Txn;
-    }, context?: object): Promise<Row>;
-    createMany({ entity, data, txn }: {
+    }, context?: object): Promise<T>;
+    createMany<T>({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
-    }, batch?: boolean, context?: object): Promise<Row[]>;
+    }, batch?: boolean, context?: object): Promise<T[]>;
     /**
      * 同create
      * @param param0
      */
-    insert({ entity, data, txn }: {
+    insert<T>({ entity, data, txn }: {
         entity: string;
         data: Data;
         txn?: Txn;
-    }, context?: object): Promise<Row>;
-    insertMany({ entity, data, txn }: {
+    }, context?: object): Promise<T>;
+    insertMany<T>({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
-    }, batch?: boolean, context?: object): Promise<Row[]>;
+    }, batch?: boolean, context?: object): Promise<T[]>;
     addDeleteAtColumnCheck(query: Query, entity: string): void;
     /**
      * select entity data
@@ -74,7 +74,7 @@ export declare class OakDb extends Warden {
      * @param param0
      * @param context
      */
-    find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
+    find<T>({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -83,30 +83,30 @@ export declare class OakDb extends Warden {
         txn?: Txn;
         forUpdate?: boolean;
         sort?: Sort;
-    }, context?: object): Promise<Row[]>;
-    stat({ entity, projection, query, txn, sort, groupBy }: {
+    }, context?: object): Promise<T[]>;
+    stat<T>({ entity, projection, query, txn, sort, groupBy }: {
         entity: string;
         projection?: Projection;
         query?: Query;
         txn?: Txn;
         sort?: Sort;
         groupBy?: GroupBy;
-    }, context?: object): Promise<Result[]>;
-    findById({ entity, projection, id, txn }: {
+    }, context?: object): Promise<T[]>;
+    findById<T>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }, context?: object): Promise<Row>;
+    }, context?: object): Promise<T>;
     private preUpdate;
     private postUpdate;
-    update({ entity, data, id, row, txn }: {
+    update<T>({ entity, data, id, row, txn }: {
         entity: string;
         data: Data;
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }, context?: object): Promise<Row>;
+    }, context?: object): Promise<T>;
     updateMany({ entity, data, query, txn }: {
         entity: string;
         data: Data;
@@ -115,12 +115,12 @@ export declare class OakDb extends Warden {
     }): Promise<void>;
     private preRemove;
     private postRemove;
-    remove({ entity, id, row, txn }: {
+    remove<T>({ entity, id, row, txn }: {
         entity: string;
         id?: string | number;
         row?: Row;
         txn?: Txn;
-    }, context?: object): Promise<Row>;
+    }, context?: object): Promise<T>;
     removeMany({ entity, query, txn }: {
         entity: string;
         query?: Query;
