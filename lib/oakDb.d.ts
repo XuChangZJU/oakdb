@@ -43,12 +43,12 @@ export declare class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    create<T>({ entity, data, txn }: {
+    create<T extends Row>({ entity, data, txn }: {
         entity: string;
         data: Data;
         txn?: Txn;
     }, context?: object): Promise<T>;
-    createMany<T>({ entity, data, txn }: {
+    createMany<T extends Row>({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
@@ -57,12 +57,12 @@ export declare class OakDb extends Warden {
      * 同create
      * @param param0
      */
-    insert<T>({ entity, data, txn }: {
+    insert<T extends Row>({ entity, data, txn }: {
         entity: string;
         data: Data;
         txn?: Txn;
     }, context?: object): Promise<T>;
-    insertMany<T>({ entity, data, txn }: {
+    insertMany<T extends Row>({ entity, data, txn }: {
         entity: string;
         data: Data[];
         txn?: Txn;
@@ -74,7 +74,7 @@ export declare class OakDb extends Warden {
      * @param param0
      * @param context
      */
-    find<T>({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
+    find<T extends Row>({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -92,7 +92,7 @@ export declare class OakDb extends Warden {
         sort?: Sort;
         groupBy?: GroupBy;
     }, context?: object): Promise<T[]>;
-    findById<T>({ entity, projection, id, txn }: {
+    findById<T extends Row>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
@@ -100,7 +100,7 @@ export declare class OakDb extends Warden {
     }, context?: object): Promise<T>;
     private preUpdate;
     private postUpdate;
-    update<T>({ entity, data, id, row, txn }: {
+    update<T extends Row>({ entity, data, id, row, txn }: {
         entity: string;
         data: Data;
         id?: string | number;
@@ -115,7 +115,7 @@ export declare class OakDb extends Warden {
     }): Promise<void>;
     private preRemove;
     private postRemove;
-    remove<T>({ entity, id, row, txn }: {
+    remove<T extends Row>({ entity, id, row, txn }: {
         entity: string;
         id?: string | number;
         row?: Row;

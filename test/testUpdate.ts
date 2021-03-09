@@ -128,7 +128,7 @@ describe('test update', function() {
             });
             console.log(updateResult);
 
-            const homework2 = await oakDb.findById<{mark: number}>({
+            const homework2 = await oakDb.findById<{id: number; mark: number}>({
                 entity: 'homework',
                 id: homework.id,
                 txn,

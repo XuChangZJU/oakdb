@@ -376,7 +376,7 @@ export class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    async create<T>({ entity, data, txn }: {
+    async create<T extends Row>({ entity, data, txn }: {
         entity: string,
         data: Data,
         txn?: Txn,
@@ -385,10 +385,10 @@ export class OakDb extends Warden {
         const row = await this.driver.create({ entity, data, txn });
         await this.postInsert(entity, data, row, txn, context);
 
-        return row as unknown as T;
+        return row as T;
     }
 
-    async createMany<T>({ entity, data, txn }: {
+    async createMany<T extends Row>({ entity, data, txn }: {
         entity: string,
         data: Data[],
         txn?: Txn,
@@ -409,14 +409,14 @@ export class OakDb extends Warden {
         for (let d of data) {
             result.push(await this.create({ entity, data: d, txn }));
         }
-        return result as unknown as T[];
+        return result as T[];
     }
 
     /**
      * 同create
      * @param param0 
      */
-    async insert<T>({ entity, data, txn }: {
+    async insert<T extends Row>({ entity, data, txn }: {
         entity: string,
         data: Data,
         txn?: Txn,
@@ -424,7 +424,7 @@ export class OakDb extends Warden {
         return await this.create<T>({ entity, data, txn }, context);
     }
 
-    async insertMany<T>({ entity, data, txn }: {
+    async insertMany<T extends Row>({ entity, data, txn }: {
         entity: string,
         data: Data[],
         txn?: Txn,
@@ -473,7 +473,7 @@ export class OakDb extends Warden {
      * @param param0 
      * @param context 
      */
-    async find<T>({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
+    async find<T extends Row>({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -563,7 +563,7 @@ export class OakDb extends Warden {
     }
 
 
-    async findById<T>({ entity, projection, id, txn }: {
+    async findById<T extends Row>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
@@ -593,7 +593,7 @@ export class OakDb extends Warden {
                 });
             }
         }
-        return row as unknown as T;
+        return row as T;
     }
 
     private async preUpdate(entity: string, data: Data, id?: string | number, row?: Row, txn?: Txn, context?: object): Promise<Row | undefined> {
@@ -650,7 +650,7 @@ export class OakDb extends Warden {
         }
     }
 
-    async update<T>({ entity, data, id, row, txn }: {
+    async update<T extends Row>({ entity, data, id, row, txn }: {
         entity: string;
         data: Data;
         id?: string | number;
@@ -670,7 +670,7 @@ export class OakDb extends Warden {
         const rowNow = assign({}, row || row2, data);
         await this.postUpdate(entity, data, rowNow as Row, txn, context);
 
-        return result as unknown as T;
+        return result as T;
     }
 
     async updateMany({ entity, data, query, txn }: {
@@ -743,7 +743,7 @@ export class OakDb extends Warden {
         }
     }
 
-    async remove<T>({ entity, id, row, txn }: {
+    async remove<T extends Row>({ entity, id, row, txn }: {
         entity: string;
         id?: string | number;
         row?: Row;
@@ -767,7 +767,7 @@ export class OakDb extends Warden {
 
         await this.postRemove(entity, row2 as Row, txn, context);
 
-        return (row || { id: id as string | number }) as unknown as T;
+        return (row || { id: id as string | number }) as T;
     }
 
     async removeMany({ entity, query, txn }: {
