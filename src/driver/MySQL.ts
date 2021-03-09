@@ -236,7 +236,8 @@ export class MySQL extends Driver {
                         errno: number,
                         sqlMessage: string,
                     }, result: any, fields: any) => {
-                        if (err) {                            ;
+                        if (err) {
+                            this.log(`sql exec err: ${sql}`);
                             return reject(this.translateToOakError(err));
                         }
     
