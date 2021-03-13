@@ -4,6 +4,6 @@ export interface SortAttr {
 }
 export interface SortNode {
     $attr: SortAttr;
-    $direction: 'asc' | 'desc';
+    $direction?: 'asc' | 'desc';
 }
 export declare type Sort = SortNode[];
