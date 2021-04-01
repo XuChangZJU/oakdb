@@ -81,8 +81,8 @@ export class OakDb extends Warden {
                             foreignKeyIndexes.push({
                                 name: `index_${attributes[attr].ref}Id`,
                                 columns: [{
-                                    name: `${attributes[attr].ref}Id`,                                    
-                                }],                                
+                                    name: `${attributes[attr].ref}Id`,
+                                }],
                             });
                         }
                     }
@@ -111,7 +111,7 @@ export class OakDb extends Warden {
                         },
                     },
                 });
-                
+
                 const indexCreateAt: Index = {
                     name: `index_createAt`,
                     columns: [{
@@ -129,7 +129,7 @@ export class OakDb extends Warden {
                     indexes.push(indexUpdateAt);
                     Object.assign(schema[entity], {
                         indexes: indexes.concat(foreignKeyIndexes),
-                    });             
+                    });
                 }
                 else {
                     assign(schema[entity], {
@@ -185,6 +185,39 @@ export class OakDb extends Warden {
                         else {
                             checkNotNull.push(attr);
                         }
+                    }
+                    if (attributes[attr].cascadingDelete) {
+                        assert(attributes[attr].type === 'ref');
+
+                        const name = `cascade delete for ${entity}(${attr})`;
+                        const { ref } = attributes[attr];
+                        const trigger: Trigger = {
+                            name,
+                            entity: ref as string,
+                            action: 'delete',
+                            fn: async ({ row: data, txn }: {
+                                row?: Row,
+                                txn?: Txn,
+                            }): Promise<number> => {
+                                const triggerRows = await this.find({
+                                    entity,
+                                    query: {
+                                        [`${attr}Id`]: (data as Row).id,
+                                    },
+                                    txn,
+                                });
+                                for (let row2 of triggerRows) {
+                                    await this.remove({
+                                        entity,
+                                        id: row2.id,
+                                        row: row2,
+                                        txn,
+                                    });
+                                }
+                                return triggerRows.length;
+                            },
+                        };
+                        this.registerTrigger(trigger);
                     }
                 }
                 if (createUuid || uniqueConstraints && uniqueConstraints.length > 0) {
