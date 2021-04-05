@@ -367,11 +367,11 @@ export class MySQL extends Driver {
     }
 
    
-    async create({ entity, data, txn }:{
+    async create<T extends Data>({ entity, data, txn }:{
         entity: string,
-        data: Data,
+        data: T,
         txn?: Txn,
-    }): Promise<Row> {        
+    }): Promise<T & Row> {        
         const sql = this.translator.translateInsertRow(entity, [data]);
 
         const { insertId } = await this.exec(sql, txn);
@@ -379,14 +379,14 @@ export class MySQL extends Driver {
         return this.unfoldResult(entity, {
             id: insertId,
             ...data,
-        }) as Row;
+        }) as Row & T;
     }
 
-    async createMany({entity, data, txn}: {
+    async createMany<T extends Data>({entity, data, txn}: {
         entity: string,
-        data: Data[],
+        data: T[],
         txn?: Txn,
-    }): Promise<Row[]> {
+    }): Promise<(Row & T)[]> {
         const sql = this.translator.translateInsertRow(entity, data);
 
         const { insertId } = await this.exec(sql, txn);
@@ -396,7 +396,7 @@ export class MySQL extends Driver {
                 this.unfoldResult(entity, {
                     id: insertId + idx,
                     ...d,
-                }) as Row
+                }) as Row & T
         );
     }
     

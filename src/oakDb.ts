@@ -409,57 +409,57 @@ export class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    async create<T extends Row>({ entity, data, txn }: {
+    async create<T extends Data>({ entity, data, txn }: {
         entity: string,
-        data: Data,
+        data: T,
         txn?: Txn,
-    }, context?: object): Promise<T> {
+    }, context?: object): Promise<T & Row> {
         await this.preInsert(entity, data, txn, context);
-        const row = await this.driver.create({ entity, data, txn });
+        const row = await this.driver.create<T>({ entity, data, txn });
         await this.postInsert(entity, data, row, txn, context);
 
-        return row as T;
+        return row;
     }
 
-    async createMany<T extends Row>({ entity, data, txn }: {
+    async createMany<T extends Data>({ entity, data, txn }: {
         entity: string,
-        data: Data[],
+        data: T[],
         txn?: Txn,
-    }, batch?: boolean, context?: object): Promise<T[]> {
+    }, batch?: boolean, context?: object): Promise<(Row &T)[]> {
         if (batch) {
             for (let d of data) {
                 await this.preInsert(entity, d, txn, context);
             }
-            const rows = await this.driver.createMany({ entity, data, txn });
+            const rows = await this.driver.createMany<T>({ entity, data, txn });
             let idx = 0;
             for (let r of rows) {
                 await this.postInsert(entity, data[idx++], r, txn, context);
             }
-            return rows as unknown as T[];
+            return rows;
         }
 
-        const result: Row[] = [];
-        for (let d of data) {
-            result.push(await this.create({ entity, data: d, txn }));
-        }
-        return result as T[];
+        return await Promise.all(
+            data.map(
+                d => this.create<T>({ entity, data: d, txn})
+            )
+        );
     }
 
     /**
      * 同create
      * @param param0 
      */
-    async insert<T extends Row>({ entity, data, txn }: {
+    async insert<T extends Data>({ entity, data, txn }: {
         entity: string,
-        data: Data,
+        data: T,
         txn?: Txn,
-    }, context?: object): Promise<T> {
+    }, context?: object): Promise<Row & T> {
         return await this.create<T>({ entity, data, txn }, context);
     }
 
     async insertMany<T extends Row>({ entity, data, txn }: {
         entity: string,
-        data: Data[],
+        data: T[],
         txn?: Txn,
     }, batch?: boolean, context?: object): Promise<T[]> {
         return this.createMany<T>({ entity, data, txn }, batch, context);
@@ -596,12 +596,12 @@ export class OakDb extends Warden {
     }
 
 
-    async findById<T extends Row>({ entity, projection, id, txn }: {
+    async findById<T>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }, context?: object): Promise<T> {
+    }, context?: object): Promise<Row & T> {
         const [row] = await this.driver.find({
             entity,
             projection,
@@ -626,7 +626,7 @@ export class OakDb extends Warden {
                 });
             }
         }
-        return row as T;
+        return row as (Row & T);
     }
 
     private async preUpdate(entity: string, data: Data, id?: string | number, row?: Row, txn?: Txn, context?: object): Promise<Row | undefined> {

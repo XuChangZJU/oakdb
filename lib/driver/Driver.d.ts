@@ -40,16 +40,16 @@ export declare abstract class Driver {
     abstract rollbackTransaction(txn: Txn): Promise<void>;
     abstract getTransactionById(id: string): Txn;
     abstract getPrimaryKeyType(): PrimaryGeneratedColumnType;
-    abstract create({ entity, data, txn }: {
+    abstract create<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data;
+        data: T;
         txn?: Txn;
-    }): Promise<Row>;
-    abstract createMany({ entity, data, txn }: {
+    }): Promise<Row & T>;
+    abstract createMany<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data[];
+        data: T[];
         txn?: Txn;
-    }): Promise<Row[]>;
+    }): Promise<(Row & T)[]>;
     abstract find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection | undefined;

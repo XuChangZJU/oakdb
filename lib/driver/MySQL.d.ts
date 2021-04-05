@@ -40,16 +40,16 @@ export declare class MySQL extends Driver {
     commitTransaction(txn: Txn): Promise<void>;
     rollbackTransaction(txn: Txn): Promise<void>;
     getTransactionById(id: string): Txn;
-    create({ entity, data, txn }: {
+    create<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data;
+        data: T;
         txn?: Txn;
-    }): Promise<Row>;
-    createMany({ entity, data, txn }: {
+    }): Promise<T & Row>;
+    createMany<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data[];
+        data: T[];
         txn?: Txn;
-    }): Promise<Row[]>;
+    }): Promise<(Row & T)[]>;
     find({ entity, projection, query, indexFrom, count, txn, sort, forUpdate }: {
         entity: string;
         projection?: Projection;
