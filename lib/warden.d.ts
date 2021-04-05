@@ -4,7 +4,7 @@ import { Txn, TxnOption } from './types/Txn';
 import { Query } from './types/Query';
 import { Schema } from './Schema';
 declare type Action = 'insert' | 'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
-interface TriggerInput {
+export interface TriggerInput {
     row?: Row;
     data?: Data;
     txn?: Txn;

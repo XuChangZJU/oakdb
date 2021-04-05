@@ -1,5 +1,5 @@
 export * from './oakDb';
-export { Trigger } from './warden';
+export { Trigger, TriggerInput } from './warden';
 export * from './Schema';
 export * from './errorCode';
 export * from './types/DataFormat';
