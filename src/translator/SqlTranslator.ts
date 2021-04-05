@@ -573,7 +573,7 @@ export abstract class SqlTranslator extends Translator {
                         if (type2 === 'ref') {
                             whereText += ` ${translateInner(ref as string, query2[attr] as Query, `${path}${ref}/`)}`;
                         }
-                        else if (typeof query2[attr] === 'object'){
+                        else if (typeof query2[attr] === 'object' && Object.keys(query2[attr])[0] && Object.keys(query2[attr])[0].startsWith('$')){
                             whereText += ` \`${alias}\`.\`${attr}\` ${translateInner(entity2, query2[attr] as PlainQuery, path, type2)}`
                         }
                         else {

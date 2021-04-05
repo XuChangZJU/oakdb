@@ -124,7 +124,8 @@ export class MySQL extends Driver {
                     }
                     case 'function': {
                         if (typeof value === 'string') {
-                            r[attr] = new Function(` return ${Buffer.from(value, 'base64').toString()}`)();
+                            // 函数的执行环境需要的参数只有创建函数者知悉，只能由上层再创建Function
+                            r[attr] = `return ${Buffer.from(value, 'base64').toString()}`;
                         }
                         else {
                             r[attr] = value;

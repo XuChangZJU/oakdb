@@ -8,6 +8,8 @@ import { mysql } from './defs/source';
 import { initOakDbInstance, disconnectOakDbInstance } from './methods/init';
 import { assert } from 'console';
 import { ErrorCode } from '../src/errorCode';
+import { assign } from 'lodash';
+import lodash from 'lodash';
 
 describe('test insert', function() {
     this.timeout(100000);
@@ -42,7 +44,7 @@ describe('test insert', function() {
             await oakDb.createMany({
                 entity: 'user',
                 data: [{
-                    name: 'xc',
+                    name: 'xc2',
                     born: new Date('1983-11-10'),
                 },{
                     name: 'gjj',
@@ -110,14 +112,44 @@ describe('test insert', function() {
 
         await oakDb.create({ entity: 'code', data: code });
 
-        const [ code2 ] = await oakDb.find<{ id: number; name: string; fn: Function }>({
+        const [ code2 ] = await oakDb.find<{ id: number; name: string; fn: string }>({
             entity: 'code',            
         });
+   
 
-        console.log(code2);        
+        const { fn } = code2;
+        const FN = new Function(fn)();
+        console.log(await FN(3, 5));
 
-        const result = await code2.fn(3, 5);
-        console.log(result);
+
+        const code3 = {
+            name: 'assignFn',
+            fn: (x: number, y: string) => {
+                return assign({}, {
+                    x,
+                    y,
+                });
+            },
+        };
+
+        console.log(code3.fn.toString());
+
+        await oakDb.create({ entity: 'code', data: code3 });
+
+        const [ code4 ] = await oakDb.find<{ id: number; name: string; fn: string }>({
+            entity: 'code',
+            query: {
+                name: 'assignFn',
+            }         
+        });
+
+        // 由于ts的缘故，这里会把assign翻译成lodash_1.assign ....，还没有太好的解决方案
+        console.log(code4);
+
+        const { fn: fn2 } = code4;
+        const FN2 = new Function('lodash_1', fn2)(lodash);
+        console.log(FN2(3, 5));
+
     });
 
     after(async() => {

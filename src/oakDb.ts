@@ -301,6 +301,7 @@ export class OakDb extends Warden {
                                     const query = assign(pick(row, uc2), pick(data, uc2));
                                     const count = await this.count({ entity, query, txn });
                                     if (count > 0) {
+                                        console.log(query);
                                         throw ErrorCode.createError(ErrorCode.uniqueConstraintViolated, `unique constraint violated on ${uc.join(',')} of entity ${entity} on update`);
                                     }
                                     result = result + 1;
@@ -308,7 +309,7 @@ export class OakDb extends Warden {
 
                             }
                             if (checkNotNull.length > 0) {
-                                const nullAttr = checkNotNull.map(
+                                const nullAttr = checkNotNull.find(
                                     (attr) => data && data[attr] === null
                                 );
                                 if (nullAttr) {
