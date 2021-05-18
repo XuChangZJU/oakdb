@@ -121,6 +121,36 @@ describe('test select', function() {
         console.log(homeworks);
     });
 
+    it ('test select or on nested relation', async () => {
+        const homeworks = await oakDb.find({
+            entity: 'homework',
+            query: {
+                $and: [{
+                    $text: {
+                        $search: 'aaa',
+                    },
+                }, {
+                        user: {
+                            $or: [
+                                {
+                                    name: {
+                                        $like: 'wk%',
+                                    },
+                                },
+                                {
+                                    name: {
+                                        $like: 'xc%',
+                                    },
+                                },
+                            ]
+                        },
+                    }],
+            },
+        });
+
+        console.log(homeworks);
+    });
+
     it ('test select by id', async () => {
         const homework = await oakDb.findById({
             entity: 'homework',
