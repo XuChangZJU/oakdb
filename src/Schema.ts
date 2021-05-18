@@ -1,5 +1,8 @@
 import { DataType } from './DataType';
 import { DataTypeParams } from './DataTypeDefaults';
+import { GroupBy } from './types/GroupBy';
+import { Projection } from './types/Projection';
+import { Query } from './types/Query';
 export type ref = 'ref';
 
 export interface Column {
@@ -51,6 +54,14 @@ export interface Entity {
     uniqueConstraints?: string[][];
     indexes?: Index[];
     config?: EntityConfig;
+    // view 相关
+    view?: true;
+    as?: {
+        entity: string;
+        projection: Projection;
+        query?: Query;
+        groupBy?: GroupBy;
+    };
 }
 
 export interface Schema {

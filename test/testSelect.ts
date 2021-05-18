@@ -84,6 +84,14 @@ describe('test select', function() {
                     shopId,
                 },
             });
+
+            await oakDb.create({
+                entity: 'userShop',
+                data: {
+                    userId,      
+                    // shopId: shopId as number + 1, // 制造一个空行
+                },
+            });
             await oakDb.commitTransaction(txn);
         }
         catch (err) {
@@ -182,9 +190,33 @@ describe('test select', function() {
                         name: 1,
                     },
                 },
+                userId: 1,
+                user: {
+                    id: 1,
+                    name: 1,
+                },
             },
+            query: {
+                shop: {
+                    cityId: {
+                        $exists: true,
+                    }
+                }
+            }
         });
         console.log(JSON.stringify(userShops));
+    });
+
+    it ('test select from view', async () => {
+        const hvs = await oakDb.find({
+            entity: 'homeworkView',
+            projection: {
+                'user.name': 1,
+                avg: 1,
+                count: 1,
+            },
+        });
+        console.log(JSON.stringify(hvs));
     });
 
     after(async () => {

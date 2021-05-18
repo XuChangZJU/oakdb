@@ -9,7 +9,7 @@ import { Driver } from './driver/Driver';
 import { MySQL as MySQLDriver } from './driver/MySQL';
 import { Trigger, Warden } from './warden';
 import { Projection } from './types/Projection';
-import { LogicQuery, PlainQuery, Query } from './types/Query';
+import { FnCall, LogicQuery, PlainQuery, Query } from './types/Query';
 import { serialUuid } from './utils';
 import { ErrorCode } from './errorCode';
 import { Sort } from './types/Sort';
@@ -62,106 +62,143 @@ export class OakDb extends Warden {
         const { schema } = this;
         Object.keys(schema).forEach(
             (entity) => {
-                const { attributes, config, indexes } = schema[entity];
+                const { attributes, config, indexes, view, as } = schema[entity];
 
-                const foreignKeyColumns = {};
-                const foreignKeyIndexes: Index[] = [];
-                Object.keys(attributes).forEach(
-                    (attr: string) => {
-                        const { type } = attributes[attr];
-                        if (type === 'ref') {
-                            Object.assign(foreignKeyColumns, {
-                                [`${attributes[attr].ref}Id`]: {
-                                    type: this.driver.getPrimaryKeyType(),
-                                    display: {
-                                        header: `${attributes[attr].ref}Id`,
-                                    },
-                                },
-                            });
-                            foreignKeyIndexes.push({
-                                name: `index_${attributes[attr].ref}Id`,
-                                columns: [{
-                                    name: `${attributes[attr].ref}Id`,
-                                }],
-                            });
-                        }
-                    }
-                );
-                Object.assign(attributes, foreignKeyColumns, {
-                    '$$createAt$$': {
-                        type: 'date',
-                        notNull: true,
-                        display: {
-                            header: '创建时间',
-                        },
-                    },
-                    '$$updateAt$$': {
-                        type: 'date',
-                        notNull: true,
-                        display: {
-                            header: '更新时间',
-                        },
-                    },
-                    'id': {
-                        type: this.driver.getPrimaryKeyType(),
-                        notNull: true,
-                        display: {
-                            header: '主键',
-                            weight: 200,
-                        },
-                    },
-                });
-
-                const indexCreateAt: Index = {
-                    name: `index_createAt`,
-                    columns: [{
-                        name: '$$createAt$$',
-                    }],
-                };
-                const indexUpdateAt: Index = {
-                    name: `index_updateAt`,
-                    columns: [{
-                        name: '$$updateAt$$',
-                    }],
-                }
-                if (indexes) {
-                    indexes.push(indexCreateAt);
-                    indexes.push(indexUpdateAt);
-                    Object.assign(schema[entity], {
-                        indexes: indexes.concat(foreignKeyIndexes),
-                    });
+                if (view && as) {
+                    //  if view, create attributes by definition
+                    const { entity: entity2, projection } = as;
+                    const analyzeProjection = (e: string, p: Projection, prefix?: string) => {
+                        const { attributes: a } = schema[e];
+                        Object.keys(p).forEach(
+                            (attr) => {
+                                if (attr.toLowerCase().startsWith('$fncall')) {
+                                    const { $as } = p[attr] as FnCall;
+                                    assert($as);
+                                    const attrName = prefix ? `${prefix}.${$as}` : $as;
+                                    assign(attributes, {
+                                        [attrName as string]: {
+                                            type: 'double', // max/min/count/sum/average?
+                                        },
+                                    });
+                                }
+                                else {
+                                    const { type, ref } = a[attr];
+                                    if (type === 'ref') {
+                                        const prefix2 = prefix ? `${prefix}.${attr}` : attr;
+                                        analyzeProjection(ref as string, p[attr] as Projection, prefix2);
+                                    }
+                                    else {
+                                        const attrName = prefix ? `${prefix}.${attr}` : attr;
+                                        assign(attributes, {
+                                            [attrName]: a[attr],
+                                        });
+                                    }
+                                }
+                            }
+                        )
+                    };
+                    analyzeProjection(entity2, projection);
                 }
                 else {
-                    assign(schema[entity], {
-                        indexes: foreignKeyIndexes.concat([indexCreateAt, indexUpdateAt]),
-                    });
-                }
-
-                if (!config || !config.removePhysically) {
-                    assign(attributes, {
-                        '$$deleteAt$$': {
+                    const foreignKeyColumns = {};
+                    const foreignKeyIndexes: Index[] = [];
+                    Object.keys(attributes).forEach(
+                        (attr: string) => {
+                            const { type } = attributes[attr];
+                            if (type === 'ref') {
+                                Object.assign(foreignKeyColumns, {
+                                    [`${attributes[attr].ref}Id`]: {
+                                        type: this.driver.getPrimaryKeyType(),
+                                        display: {
+                                            header: `${attributes[attr].ref}Id`,
+                                        },
+                                    },
+                                });
+                                foreignKeyIndexes.push({
+                                    name: `index_${attributes[attr].ref}Id`,
+                                    columns: [{
+                                        name: `${attributes[attr].ref}Id`,
+                                    }],
+                                });
+                            }
+                        }
+                    );
+                    Object.assign(attributes, foreignKeyColumns, {
+                        '$$createAt$$': {
                             type: 'date',
-                            display: {
-                                header: '删除时间',
-                            },
-                        },
-                    });
-                }
-
-                if (config && config.hasUuid) {
-                    assign(attributes, {
-                        '$$uuid$$': {
-                            type: 'varchar',
-                            params: {
-                                length: 64,
-                            },
-                            unique: true,
                             notNull: true,
                             display: {
-                                header: 'uuid',
+                                header: '创建时间',
+                            },
+                        },
+                        '$$updateAt$$': {
+                            type: 'date',
+                            notNull: true,
+                            display: {
+                                header: '更新时间',
+                            },
+                        },
+                        'id': {
+                            type: this.driver.getPrimaryKeyType(),
+                            notNull: true,
+                            display: {
+                                header: '主键',
+                                weight: 200,
                             },
                         },
                     });
+    
+                    const indexCreateAt: Index = {
+                        name: `index_createAt`,
+                        columns: [{
+                            name: '$$createAt$$',
+                        }],
+                    };
+                    const indexUpdateAt: Index = {
+                        name: `index_updateAt`,
+                        columns: [{
+                            name: '$$updateAt$$',
+                        }],
+                    }
+                    if (indexes) {
+                        indexes.push(indexCreateAt);
+                        indexes.push(indexUpdateAt);
+                        Object.assign(schema[entity], {
+                            indexes: indexes.concat(foreignKeyIndexes),
+                        });
+                    }
+                    else {
+                        assign(schema[entity], {
+                            indexes: foreignKeyIndexes.concat([indexCreateAt, indexUpdateAt]),
+                        });
+                    }
+    
+                    if (!config || !config.removePhysically) {
+                        assign(attributes, {
+                            '$$deleteAt$$': {
+                                type: 'date',
+                                display: {
+                                    header: '删除时间',
+                                },
+                            },
+                        });
+                    }
+    
+                    if (config && config.hasUuid) {
+                        assign(attributes, {
+                            '$$uuid$$': {
+                                type: 'varchar',
+                                params: {
+                                    length: 64,
+                                },
+                                unique: true,
+                                notNull: true,
+                                display: {
+                                    header: 'uuid',
+                                },
+                            },
+                        });
+                    }
                 }
             }
         );

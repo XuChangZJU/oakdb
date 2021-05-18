@@ -7,7 +7,7 @@ import { schemaTestCreate } from './defs/schema';
 import { mysql } from './defs/source';
 import { initOakDbInstance, disconnectOakDbInstance } from './methods/init';
 
-describe('test oakdb', function() {
+describe('test oakdb create', function() {
     this.timeout(10000);
     it ('test initDb', async () => {
         const oakDb: OakDb = await initOakDbInstance(schemaTestCreate, mysql, true, true, undefined, true);

@@ -129,4 +129,32 @@ export const schemaTestCreate: Schema = {
             },
         },
     },
+    homeworkView: {
+        title: '作业均分视图',
+        view: true,
+        attributes: {},
+        as: {
+            entity: 'homework',
+            projection: {
+                $fnCall1: {
+                    $format: 'count(1)',
+                    $as: 'count',
+                },
+                $fnCall2: {
+                    $format: 'avg(%s)',
+                    $attrs: ['mark'],
+                    $as: 'avg',
+                },
+                user: {
+                    name: 1,
+                },
+            },
+            groupBy: {
+                userId: 1,
+                user: {
+                    name: 1,
+                },
+            },
+        }
+    }
 };

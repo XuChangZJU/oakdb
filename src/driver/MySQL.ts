@@ -80,65 +80,72 @@ export class MySQL extends Driver {
         function resolveAttribute(entity2: string, r: {
             [propName: string]: any;
         }, attr: string, value: any) {
-            const { attributes } = schema[entity2];
-            const i = attr.indexOf(".");
-            if (i !== -1) {
-                const attrHead = attr.slice(0, i);
-                const attrTail = attr.slice(i + 1);
-                if (!r[attrHead]) {
-                    r[attrHead] = {};
+            const { attributes, view } = schema[entity2];
+            if (!view) {
+                const i = attr.indexOf(".");
+                if (i !== -1) {
+                    const attrHead = attr.slice(0, i);
+                    const attrTail = attr.slice(i + 1);
+                    if (!r[attrHead]) {
+                        r[attrHead] = {};
+                    }
+                    assert(attributes[attrHead] && attributes[attrHead].type === 'ref');
+                    resolveAttribute(attributes[attrHead].ref as string, r[attrHead], attrTail, value);
                 }
-                assert(attributes[attrHead] && attributes[attrHead].type === 'ref');
-                resolveAttribute(attributes[attrHead].ref as string, r[attrHead], attrTail, value);
-            }
-            else if (attributes[attr]) {
-                const { type } = attributes[attr];
-                switch (type) {
-                    case 'date':
-                    case 'time': {
-                        if (value instanceof Date) {
-                            r[attr] = value.valueOf();
+                else if (attributes[attr]) {
+                    const { type } = attributes[attr];
+                    switch (type) {
+                        case 'date':
+                        case 'time': {
+                            if (value instanceof Date) {
+                                r[attr] = value.valueOf();
+                            }
+                            else {
+                                r[attr] = value;
+                            }
+                            break;
                         }
-                        else {
+                        case 'geometry': {
+                            if (typeof value === 'string') {
+                                r[attr] = convertGeoTextToObject(value);
+                            }
+                            else {
+                                r[attr] = value;
+                            }
+                            break;
+                        }
+                        case 'object': {
+                            if (typeof value === 'string') {
+                                r[attr] = JSON.parse(value);
+                            }
+                            else {
+                                r[attr] = value;
+                            }
+                            break;
+                        }
+                        case 'function': {
+                            if (typeof value === 'string') {
+                                // 函数的执行环境需要的参数只有创建函数者知悉，只能由上层再创建Function
+                                r[attr] = `return ${Buffer.from(value, 'base64').toString()}`;
+                            }
+                            else {
+                                r[attr] = value;
+                            }
+                            break;
+                        }
+                        default: {
                             r[attr] = value;
                         }
-                        break;
                     }
-                    case 'geometry': {
-                        if (typeof value === 'string') {
-                            r[attr] = convertGeoTextToObject(value);
-                        }
-                        else {
-                            r[attr] = value;
-                        }
-                        break;
-                    }
-                    case 'object': {
-                        if (typeof value === 'string') {
-                            r[attr] = JSON.parse(value);
-                        }
-                        else {
-                            r[attr] = value;
-                        }
-                        break;
-                    }
-                    case 'function': {
-                        if (typeof value === 'string') {
-                            // 函数的执行环境需要的参数只有创建函数者知悉，只能由上层再创建Function
-                            r[attr] = `return ${Buffer.from(value, 'base64').toString()}`;
-                        }
-                        else {
-                            r[attr] = value;
-                        }
-                        break;
-                    }
-                    default: {
-                        r[attr] = value;
-                    }
+                }
+                else {
+                    r[attr] = value;
                 }
             }
             else {
-                r[attr] = value;
+                assign(r, {
+                    [attr]: value,
+                });
             }
         }
 
