@@ -107,17 +107,17 @@ export class OakDb extends Warden {
                             const { type } = attributes[attr];
                             if (type === 'ref') {
                                 Object.assign(foreignKeyColumns, {
-                                    [`${attributes[attr].ref}Id`]: {
+                                    [`${attr}Id`]: {
                                         type: this.driver.getPrimaryKeyType(),
                                         display: {
-                                            header: `${attributes[attr].ref}Id`,
+                                            header: `${attr}Id`,
                                         },
                                     },
                                 });
                                 foreignKeyIndexes.push({
-                                    name: `index_${attributes[attr].ref}Id`,
+                                    name: `index_${attr}Id`,
                                     columns: [{
-                                        name: `${attributes[attr].ref}Id`,
+                                        name: `${attr}Id`,
                                     }],
                                 });
                             }
