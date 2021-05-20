@@ -320,7 +320,7 @@ export class MySQLTranslator extends SqlTranslator {
                     if (unique) {
                         sql += 'unique ';
                     }
-                    if (defaultValue) {
+                    if (defaultValue !== undefined) {
                         sql += `default ${this.translateAttrValue(type, defaultValue)}`;
                     }
                     if (attr === 'id') {
