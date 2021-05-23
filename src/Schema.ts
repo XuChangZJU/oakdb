@@ -26,6 +26,7 @@ export interface Attribute {
     type: DataType | 'ref';
     params?: DataTypeParams;
     ref?: string;
+    onRefDelete?: 'delete' | 'setNull';
     default?: string | number | boolean;
     unique?: boolean;
     notNull?: boolean;

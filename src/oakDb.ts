@@ -186,6 +186,72 @@ export class OakDb extends Warden {
                             checkNotNull.push(attr);
                         }
                     }
+                    if (attributes[attr].onRefDelete) {
+                        switch (attributes[attr].onRefDelete) {
+                            case 'delete': {
+                                this.registerTrigger({
+                                    name: `cascading delete ${entity} on ${attr}`,
+                                    entity: attributes[attr].ref as string,
+                                    action: 'delete',
+                                    fn: async ({ row, txn }, context) => {
+                                        const { id } = row as Row;
+                                        const cascadingRows = await this.find({
+                                            entity,
+                                            query: {
+                                                [`${attr}Id`]: id,
+                                            },
+                                            txn,
+                                            forUpdate: true,
+                                        }, context);
+                                        for (const cascadingRow of cascadingRows) {
+                                            await this.remove({
+                                                entity,
+                                                id: cascadingRow.id,
+                                                row: cascadingRow,
+                                                txn,
+                                            }, context);
+                                        }
+                                        return cascadingRows.length;
+                                    }
+                                });
+                                break;
+                            }
+                            case 'setNull': {
+                                this.registerTrigger({
+                                    name: `cascading delete ${entity} on ${attr}`,
+                                    entity: attributes[attr].ref as string,
+                                    action: 'delete',
+                                    fn: async ({ row, txn }, context) => {
+                                        const { id } = row as Row;
+                                        const cascadingRows = await this.find({
+                                            entity,
+                                            query: {
+                                                [`${attr}Id`]: id,
+                                            },
+                                            txn,
+                                            forUpdate: true,
+                                        }, context);
+                                        for (const cascadingRow of cascadingRows) {
+                                            await this.update({
+                                                entity,
+                                                id: cascadingRow.id,
+                                                row: cascadingRow,
+                                                data: {
+                                                    [`${attr}Id`]: null,
+                                                },
+                                                txn,
+                                            }, context);
+                                        }
+                                        return cascadingRows.length;
+                                    }
+                                });
+                                break;
+                            }
+                            default: {
+                                assert(false);
+                            }
+                        }
+                    }
                 }
                 if (createUuid || uniqueConstraints && uniqueConstraints.length > 0) {
                     // create before trigger for insert action
