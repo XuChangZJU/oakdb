@@ -24,7 +24,7 @@ describe('test select', function() {
                 },
                 txn,
             });
-            const user = await oakDb.create<{ id: number }>({
+            const user = await oakDb.create<{ name: string, born: Date}>({
                 entity: 'user',
                 data: {
                     name: 'wkj',
@@ -54,14 +54,14 @@ describe('test select', function() {
                 },
             });
 
-            const city = await oakDb.create<{id: number}>({
+            const city = await oakDb.create<{ name: string, description: string }>({
                 entity: 'city',
                 data: {
                     name: '杭州市',
                     description: '非常美丽的城市',
                 },
             });
-            const shop = await oakDb.create<{ id: number }>({
+            const shop = await oakDb.create<{ location: object, name: string, data: object, cityId: number|string }>({
                 entity: 'shop',
                 data: {
                     location: {
@@ -82,6 +82,14 @@ describe('test select', function() {
                 data: {
                     userId,
                     shopId,
+                },
+            });
+
+            await oakDb.create({
+                entity: 'userShop',
+                data: {
+                    userId,      
+                    // shopId: shopId as number + 1, // 制造一个空行
                 },
             });
             await oakDb.commitTransaction(txn);
@@ -121,6 +129,36 @@ describe('test select', function() {
         console.log(homeworks);
     });
 
+    it ('test select or on nested relation', async () => {
+        const homeworks = await oakDb.find({
+            entity: 'homework',
+            query: {
+                $and: [{
+                    $text: {
+                        $search: 'aaa',
+                    },
+                }, {
+                        user: {
+                            $or: [
+                                {
+                                    name: {
+                                        $like: 'wk%',
+                                    },
+                                },
+                                {
+                                    name: {
+                                        $like: 'xc%',
+                                    },
+                                },
+                            ]
+                        },
+                    }],
+            },
+        });
+
+        console.log(homeworks);
+    });
+
     it ('test select by id', async () => {
         const homework = await oakDb.findById({
             entity: 'homework',
@@ -152,9 +190,33 @@ describe('test select', function() {
                         name: 1,
                     },
                 },
+                userId: 1,
+                user: {
+                    id: 1,
+                    name: 1,
+                },
             },
+            query: {
+                shop: {
+                    cityId: {
+                        $exists: true,
+                    }
+                }
+            }
         });
         console.log(JSON.stringify(userShops));
+    });
+
+    it ('test select from view', async () => {
+        const hvs = await oakDb.find({
+            entity: 'homeworkView',
+            projection: {
+                'user.name': 1,
+                avg: 1,
+                count: 1,
+            },
+        });
+        console.log(JSON.stringify(hvs));
     });
 
     after(async () => {

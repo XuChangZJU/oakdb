@@ -9,7 +9,7 @@ import { Driver } from './driver/Driver';
 import { MySQL as MySQLDriver } from './driver/MySQL';
 import { Trigger, Warden } from './warden';
 import { Projection } from './types/Projection';
-import { LogicQuery, PlainQuery, Query } from './types/Query';
+import { FnCall, LogicQuery, PlainQuery, Query } from './types/Query';
 import { serialUuid } from './utils';
 import { ErrorCode } from './errorCode';
 import { Sort } from './types/Sort';
@@ -62,106 +62,143 @@ export class OakDb extends Warden {
         const { schema } = this;
         Object.keys(schema).forEach(
             (entity) => {
-                const { attributes, config, indexes } = schema[entity];
+                const { attributes, config, indexes, view, as } = schema[entity];
 
-                const foreignKeyColumns = {};
-                const foreignKeyIndexes: Index[] = [];
-                Object.keys(attributes).forEach(
-                    (attr: string) => {
-                        const { type } = attributes[attr];
-                        if (type === 'ref') {
-                            Object.assign(foreignKeyColumns, {
-                                [`${attributes[attr].ref}Id`]: {
-                                    type: this.driver.getPrimaryKeyType(),
-                                    display: {
-                                        header: `${attributes[attr].ref}Id`,
-                                    },
-                                },
-                            });
-                            foreignKeyIndexes.push({
-                                name: `index_${attributes[attr].ref}Id`,
-                                columns: [{
-                                    name: `${attributes[attr].ref}Id`,                                    
-                                }],                                
-                            });
-                        }
-                    }
-                );
-                Object.assign(attributes, foreignKeyColumns, {
-                    '$$createAt$$': {
-                        type: 'date',
-                        notNull: true,
-                        display: {
-                            header: '创建时间',
-                        },
-                    },
-                    '$$updateAt$$': {
-                        type: 'date',
-                        notNull: true,
-                        display: {
-                            header: '更新时间',
-                        },
-                    },
-                    'id': {
-                        type: this.driver.getPrimaryKeyType(),
-                        notNull: true,
-                        display: {
-                            header: '主键',
-                            weight: 200,
-                        },
-                    },
-                });
-                
-                const indexCreateAt: Index = {
-                    name: `index_createAt`,
-                    columns: [{
-                        name: '$$createAt$$',
-                    }],
-                };
-                const indexUpdateAt: Index = {
-                    name: `index_updateAt`,
-                    columns: [{
-                        name: '$$updateAt$$',
-                    }],
-                }
-                if (indexes) {
-                    indexes.push(indexCreateAt);
-                    indexes.push(indexUpdateAt);
-                    Object.assign(schema[entity], {
-                        indexes: indexes.concat(foreignKeyIndexes),
-                    });             
+                if (view && as) {
+                    //  if view, create attributes by definition
+                    const { entity: entity2, projection } = as;
+                    const analyzeProjection = (e: string, p: Projection, prefix?: string) => {
+                        const { attributes: a } = schema[e];
+                        Object.keys(p).forEach(
+                            (attr) => {
+                                if (attr.toLowerCase().startsWith('$fncall')) {
+                                    const { $as } = p[attr] as FnCall;
+                                    assert($as);
+                                    const attrName = prefix ? `${prefix}.${$as}` : $as;
+                                    assign(attributes, {
+                                        [attrName as string]: {
+                                            type: 'double', // max/min/count/sum/average?
+                                        },
+                                    });
+                                }
+                                else {
+                                    const { type, ref } = a[attr];
+                                    if (type === 'ref') {
+                                        const prefix2 = prefix ? `${prefix}.${attr}` : attr;
+                                        analyzeProjection(ref as string, p[attr] as Projection, prefix2);
+                                    }
+                                    else {
+                                        const attrName = prefix ? `${prefix}.${attr}` : attr;
+                                        assign(attributes, {
+                                            [attrName]: a[attr],
+                                        });
+                                    }
+                                }
+                            }
+                        )
+                    };
+                    analyzeProjection(entity2, projection);
                 }
                 else {
-                    assign(schema[entity], {
-                        indexes: foreignKeyIndexes.concat([indexCreateAt, indexUpdateAt]),
-                    });
-                }
-
-                if (!config || !config.removePhysically) {
-                    assign(attributes, {
-                        '$$deleteAt$$': {
+                    const foreignKeyColumns = {};
+                    const foreignKeyIndexes: Index[] = [];
+                    Object.keys(attributes).forEach(
+                        (attr: string) => {
+                            const { type } = attributes[attr];
+                            if (type === 'ref') {
+                                Object.assign(foreignKeyColumns, {
+                                    [`${attr}Id`]: {
+                                        type: this.driver.getPrimaryKeyType(),
+                                        display: {
+                                            header: `${attr}Id`,
+                                        },
+                                    },
+                                });
+                                foreignKeyIndexes.push({
+                                    name: `index_${attr}Id`,
+                                    columns: [{
+                                        name: `${attr}Id`,
+                                    }],
+                                });
+                            }
+                        }
+                    );
+                    Object.assign(attributes, foreignKeyColumns, {
+                        '$$createAt$$': {
                             type: 'date',
-                            display: {
-                                header: '删除时间',
-                            },
-                        },
-                    });
-                }
-
-                if (config && config.hasUuid) {
-                    assign(attributes, {
-                        '$$uuid$$': {
-                            type: 'varchar',
-                            params: {
-                                length: 64,
-                            },
-                            unique: true,
                             notNull: true,
                             display: {
-                                header: 'uuid',
+                                header: '创建时间',
+                            },
+                        },
+                        '$$updateAt$$': {
+                            type: 'date',
+                            notNull: true,
+                            display: {
+                                header: '更新时间',
+                            },
+                        },
+                        'id': {
+                            type: this.driver.getPrimaryKeyType(),
+                            notNull: true,
+                            display: {
+                                header: '主键',
+                                weight: 200,
                             },
                         },
                     });
+    
+                    const indexCreateAt: Index = {
+                        name: `index_createAt`,
+                        columns: [{
+                            name: '$$createAt$$',
+                        }],
+                    };
+                    const indexUpdateAt: Index = {
+                        name: `index_updateAt`,
+                        columns: [{
+                            name: '$$updateAt$$',
+                        }],
+                    }
+                    if (indexes) {
+                        indexes.push(indexCreateAt);
+                        indexes.push(indexUpdateAt);
+                        Object.assign(schema[entity], {
+                            indexes: indexes.concat(foreignKeyIndexes),
+                        });
+                    }
+                    else {
+                        assign(schema[entity], {
+                            indexes: foreignKeyIndexes.concat([indexCreateAt, indexUpdateAt]),
+                        });
+                    }
+    
+                    if (!config || !config.removePhysically) {
+                        assign(attributes, {
+                            '$$deleteAt$$': {
+                                type: 'date',
+                                display: {
+                                    header: '删除时间',
+                                },
+                            },
+                        });
+                    }
+    
+                    if (config && config.hasUuid) {
+                        assign(attributes, {
+                            '$$uuid$$': {
+                                type: 'varchar',
+                                params: {
+                                    length: 64,
+                                },
+                                unique: true,
+                                notNull: true,
+                                display: {
+                                    header: 'uuid',
+                                },
+                            },
+                        });
+                    }
                 }
             }
         );
@@ -334,6 +371,7 @@ export class OakDb extends Warden {
                                     const query = assign(pick(row, uc2), pick(data, uc2));
                                     const count = await this.count({ entity, query, txn });
                                     if (count > 0) {
+                                        console.log(query);
                                         throw ErrorCode.createError(ErrorCode.uniqueConstraintViolated, `unique constraint violated on ${uc.join(',')} of entity ${entity} on update`);
                                     }
                                     result = result + 1;
@@ -341,7 +379,7 @@ export class OakDb extends Warden {
 
                             }
                             if (checkNotNull.length > 0) {
-                                const nullAttr = checkNotNull.map(
+                                const nullAttr = checkNotNull.find(
                                     (attr) => data && data[attr] === null
                                 );
                                 if (nullAttr) {
@@ -442,57 +480,57 @@ export class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    async create<T extends Row>({ entity, data, txn }: {
+    async create<T extends Data>({ entity, data, txn }: {
         entity: string,
-        data: Data,
+        data: T,
         txn?: Txn,
-    }, context?: object): Promise<T> {
+    }, context?: object): Promise<T & Row> {
         await this.preInsert(entity, data, txn, context);
-        const row = await this.driver.create({ entity, data, txn });
+        const row = await this.driver.create<T>({ entity, data, txn });
         await this.postInsert(entity, data, row, txn, context);
 
-        return row as T;
+        return row;
     }
 
-    async createMany<T extends Row>({ entity, data, txn }: {
+    async createMany<T extends Data>({ entity, data, txn }: {
         entity: string,
-        data: Data[],
+        data: T[],
         txn?: Txn,
-    }, batch?: boolean, context?: object): Promise<T[]> {
+    }, batch?: boolean, context?: object): Promise<(Row &T)[]> {
         if (batch) {
             for (let d of data) {
                 await this.preInsert(entity, d, txn, context);
             }
-            const rows = await this.driver.createMany({ entity, data, txn });
+            const rows = await this.driver.createMany<T>({ entity, data, txn });
             let idx = 0;
             for (let r of rows) {
                 await this.postInsert(entity, data[idx++], r, txn, context);
             }
-            return rows as unknown as T[];
+            return rows;
         }
 
-        const result: Row[] = [];
-        for (let d of data) {
-            result.push(await this.create({ entity, data: d, txn }));
-        }
-        return result as T[];
+        return await Promise.all(
+            data.map(
+                d => this.create<T>({ entity, data: d, txn})
+            )
+        );
     }
 
     /**
      * 同create
      * @param param0 
      */
-    async insert<T extends Row>({ entity, data, txn }: {
+    async insert<T extends Data>({ entity, data, txn }: {
         entity: string,
-        data: Data,
+        data: T,
         txn?: Txn,
-    }, context?: object): Promise<T> {
+    }, context?: object): Promise<Row & T> {
         return await this.create<T>({ entity, data, txn }, context);
     }
 
     async insertMany<T extends Row>({ entity, data, txn }: {
         entity: string,
-        data: Data[],
+        data: T[],
         txn?: Txn,
     }, batch?: boolean, context?: object): Promise<T[]> {
         return this.createMany<T>({ entity, data, txn }, batch, context);
@@ -629,12 +667,12 @@ export class OakDb extends Warden {
     }
 
 
-    async findById<T extends Row>({ entity, projection, id, txn }: {
+    async findById<T>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }, context?: object): Promise<T> {
+    }, context?: object): Promise<Row & T> {
         const [row] = await this.driver.find({
             entity,
             projection,
@@ -659,7 +697,7 @@ export class OakDb extends Warden {
                 });
             }
         }
-        return row as T;
+        return row as (Row & T);
     }
 
     private async preUpdate(entity: string, data: Data, id?: string | number, row?: Row, txn?: Txn, context?: object): Promise<Row | undefined> {

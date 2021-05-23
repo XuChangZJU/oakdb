@@ -15,9 +15,15 @@ import { GroupBy } from '../types/GroupBy';
 export abstract class SqlTranslator extends Translator {
     translateDestroyEntity(entity: string, truncate?: boolean):string {
         const { schema } = this;
-        const { storageName = entity } = schema[entity];
+        const { storageName = entity, view } = schema[entity];
         
-        const sql = truncate ? `truncate table ${storageName}`: `drop table if exists ${storageName}`;
+        let sql;
+        if (view) {
+            sql = `drop view ${storageName}`;
+        }
+        else {
+            sql = truncate ? `truncate table ${storageName}`: `drop table if exists ${storageName}`;
+        }
 
         return sql;
     }
@@ -136,43 +142,6 @@ export abstract class SqlTranslator extends Translator {
             './': alias,
         };
 
-        const analyzeProjectionNode = ({ node, path, entityName, alias }: {
-            node: Projection;
-            path: string;
-            entityName: string;
-            alias: string;
-        }): void => {
-            const { attributes } = schema[entityName];
-            Object.keys(node).forEach(
-                (attr) => {
-                    if (attributes[attr] && attributes[attr].type === 'ref') {
-                        const { ref } = attributes[attr];
-                        const pathAttr = `${path}${attr}/`;
-
-                        let alias2;
-                        if (!aliasDict.hasOwnProperty(pathAttr)) {
-                            alias2 = `${ref}_${count++}`;
-                            assign(aliasDict, {
-                                [pathAttr]: alias2,
-                            });
-                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
-                        }
-                        else {
-                            alias2 = aliasDict[pathAttr];
-                        }
-                        analyzeProjectionNode({
-                            node: node[attr] as Projection,
-                            path: pathAttr,
-                            entityName: ref as string,
-                            alias: alias2,
-                         });
-                    }
-                }
-            );
-        };
-
-        analyzeProjectionNode({ node: projection, path: './', entityName: entity, alias });
-
         const analyzeQueryNode = ({ node, path, entityName, alias }: {
             node: Query;
             path: string;
@@ -201,7 +170,7 @@ export abstract class SqlTranslator extends Translator {
                             assign(aliasDict, {
                                 [pathAttr]: alias2,
                             });
-                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${op}Id\` = \`${alias2}\`.\`id\``;
+                            from += ` inner join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${op}Id\` = \`${alias2}\`.\`id\``;
                         }
                         else {
                             alias2 = aliasDict[pathAttr];
@@ -242,7 +211,7 @@ export abstract class SqlTranslator extends Translator {
                     assign(aliasDict, {
                         [pathAttr]: alias2,
                     });
-                    from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
+                    from += ` inner join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
                 }
                 else {
                     alias2 = aliasDict[pathAttr];
@@ -268,6 +237,44 @@ export abstract class SqlTranslator extends Translator {
                 }
             );
         }
+
+        const analyzeProjectionNode = ({ node, path, entityName, alias }: {
+            node: Projection;
+            path: string;
+            entityName: string;
+            alias: string;
+        }): void => {
+            const { attributes } = schema[entityName];
+            Object.keys(node).forEach(
+                (attr) => {
+                    if (attributes[attr] && attributes[attr].type === 'ref') {
+                        const { ref } = attributes[attr];
+                        const pathAttr = `${path}${attr}/`;
+
+                        let alias2;
+                        if (!aliasDict.hasOwnProperty(pathAttr)) {
+                            alias2 = `${ref}_${count++}`;
+                            assign(aliasDict, {
+                                [pathAttr]: alias2,
+                            });
+                            from += ` left join \`${getStorageName(ref as string)}\` \`${alias2}\` on \`${alias}\`.\`${attr}Id\` = \`${alias2}\`.\`id\``;
+                        }
+                        else {
+                            alias2 = aliasDict[pathAttr];
+                        }
+                        analyzeProjectionNode({
+                            node: node[attr] as Projection,
+                            path: pathAttr,
+                            entityName: ref as string,
+                            alias: alias2,
+                         });
+                    }
+                }
+            );
+        };
+
+        analyzeProjectionNode({ node: projection, path: './', entityName: entity, alias });
+
 
         return {
             aliasDict,
@@ -394,12 +401,12 @@ export abstract class SqlTranslator extends Translator {
                         return;
                     }
                     if (attributes.hasOwnProperty(attr)) {
-                        if (!projectionNode.hasOwnProperty(attr)) {
+                        /* if (!projectionNode.hasOwnProperty(attr)) {
                             throw ErrorCode.createError(ErrorCode.sortAttrUnexisted, `sort attribute ${path}/${attr} unexisted in projection`, {
                                 path,
                                 attr,
                             });
-                        }
+                        } */
                         if (attributes[attr].type === 'ref') {
                             checkInProjection(sortNode[attr] as SortAttr, projectionNode[attr] as Projection, attributes[attr].ref as string, `${path}${attr}/`);
                         }                        
@@ -572,7 +579,7 @@ export abstract class SqlTranslator extends Translator {
                         if (type2 === 'ref') {
                             whereText += ` ${translateInner(ref as string, query2[attr] as Query, `${path}${ref}/`)}`;
                         }
-                        else if (typeof query2[attr] === 'object'){
+                        else if (typeof query2[attr] === 'object' && Object.keys(query2[attr])[0] && Object.keys(query2[attr])[0].startsWith('$')){
                             whereText += ` \`${alias}\`.\`${attr}\` ${translateInner(entity2, query2[attr] as PlainQuery, path, type2)}`
                         }
                         else {
@@ -606,7 +613,7 @@ export abstract class SqlTranslator extends Translator {
                 return this.translateFnCall(sortAttr[attr] as FnCall, alias, prefix);
             }
             else if (sortAttr[attr] === 1) {
-                return ` \`${prefix}${attr}\``;
+                return ` \`${alias}\`.\`${attr}\``;
             }
             else {
                 const { ref, type } = attributes[attr];
@@ -620,7 +627,9 @@ export abstract class SqlTranslator extends Translator {
             (sortNode, index) => {
                 const { $attr, $direction } = sortNode;
                 sortText += translateInner(entity, $attr, './');
-                sortText += ` ${$direction}`;
+                if ($direction) {
+                    sortText += ` ${$direction}`;
+                }
 
                 if (index < sort.length - 1) {
                     sortText += ',';

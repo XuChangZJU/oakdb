@@ -10,6 +10,7 @@ import { SqlTranslator } from '../src/translator/SqlTranslator';
 import { MySQLTranslator } from '../src/translator/MySQLTranslator';
 import { MySQL } from '../src/driver/MySQL';
 import { Driver } from '../src/driver/Driver';
+import { assert } from 'console';
 
 describe('test select', function() {
     this.timeout(100000);
@@ -90,6 +91,63 @@ describe('test select', function() {
             }
         });
         console.log(sql);
+    });
+
+
+    it('join type', async () => {
+        const sql = sqlTranslator.translateSelect({
+            entity: 'homework',
+            projection: {
+                id: 1,
+            },
+            query: {
+                title: {
+                    $like: 'aaa%',
+                },
+                user: {
+                    name: {
+                        $like: 'xc%',
+                    },
+                },
+            },
+        });
+        console.log(sql);   // should be inner join
+        assert(sql.includes('inner join'));
+
+        const sql2 = sqlTranslator.translateSelect({
+            entity: 'homework',
+            projection: {
+                id: 1,
+            },
+            query: {
+                title: {
+                    $like: 'aaa%',
+                },
+            },
+            sort: [{
+                $attr: {
+                    user: {
+                        name: 1,
+                    },
+                },
+            }]
+        });
+
+        console.log(sql2);   // should be inner join
+        assert(sql2.includes('inner join'));
+
+        const sql3 = sqlTranslator.translateSelect({
+            entity: 'homework',
+            projection: {
+                id: 1,
+                user: {
+                    name: 1,
+                },
+            },
+        });
+
+        console.log(sql3);   // should be left join
+        assert(sql3.includes('left join'));
     });
 
     it('logic operator in where', async () => {

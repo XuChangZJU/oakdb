@@ -43,28 +43,28 @@ export declare class OakDb extends Warden {
      * @param entity 对象
      * @param data 数据
      */
-    create<T extends Row>({ entity, data, txn }: {
+    create<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data;
+        data: T;
         txn?: Txn;
-    }, context?: object): Promise<T>;
-    createMany<T extends Row>({ entity, data, txn }: {
+    }, context?: object): Promise<T & Row>;
+    createMany<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data[];
+        data: T[];
         txn?: Txn;
-    }, batch?: boolean, context?: object): Promise<T[]>;
+    }, batch?: boolean, context?: object): Promise<(Row & T)[]>;
     /**
      * 同create
      * @param param0
      */
-    insert<T extends Row>({ entity, data, txn }: {
+    insert<T extends Data>({ entity, data, txn }: {
         entity: string;
-        data: Data;
+        data: T;
         txn?: Txn;
-    }, context?: object): Promise<T>;
+    }, context?: object): Promise<Row & T>;
     insertMany<T extends Row>({ entity, data, txn }: {
         entity: string;
-        data: Data[];
+        data: T[];
         txn?: Txn;
     }, batch?: boolean, context?: object): Promise<T[]>;
     addDeleteAtColumnCheck(query: Query, entity: string): void;
@@ -92,12 +92,12 @@ export declare class OakDb extends Warden {
         sort?: Sort;
         groupBy?: GroupBy;
     }, context?: object): Promise<T[]>;
-    findById<T extends Row>({ entity, projection, id, txn }: {
+    findById<T>({ entity, projection, id, txn }: {
         entity: string;
         projection?: Projection;
         id: string | number;
         txn?: Txn;
-    }, context?: object): Promise<T>;
+    }, context?: object): Promise<Row & T>;
     private preUpdate;
     private postUpdate;
     update<T extends Row>({ entity, data, id, row, txn }: {

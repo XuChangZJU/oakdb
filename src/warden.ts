@@ -9,7 +9,7 @@ import assert from 'assert';
 import { assign, cloneDeep, intersection, remove, values } from 'lodash';
 
 type Action = 'insert'|'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
-interface TriggerInput {
+export interface TriggerInput {
     row?: Row,
     data?: Data,
     txn?: Txn,
