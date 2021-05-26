@@ -137,7 +137,5 @@ export declare class OakDb extends Warden {
      *      {}: one-to-many(using entity/entityId)
      * }
      */
-    judgeRelation(entity: string, attr: string): string | string[] | 1 | 2 | {
-        $$entity: string;
-    };
+    judgeRelation(entity: string, attr: string, schema?: Schema): any;
 }

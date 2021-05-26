@@ -874,8 +874,9 @@ export class OakDb extends Warden {
      *      {}: one-to-many(using entity/entityId)
      * }
      */
-    judgeRelation(entity: string, attr: string) {
-        const { attributes } = this.schema[entity];
+    judgeRelation(entity: string, attr: string, schema?: Schema): any {
+        const schema2 = schema || this.schema;
+        const { attributes } = schema2[entity];
 
         if (attributes.hasOwnProperty(attr)) {
             if (attributes[attr].type === 'ref') {
@@ -893,7 +894,7 @@ export class OakDb extends Warden {
         else {
             assert(attr.endsWith('s'));
             const attr2 = attr.slice(0, attr.length - 1);
-            const { attributes: attributes2 } = this.schema[attr2];
+            const { attributes: attributes2 } = schema2[attr2];
             if (attributes2.hasOwnProperty(entity)) {
                 // 此时要求定义的时候一定要按entity名称来定义属性，如果有多个属性映射成外键是不能支持的  by Xc
                 assert(attributes2[entity].type === 'ref');
