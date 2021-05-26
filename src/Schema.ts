@@ -29,7 +29,7 @@ export interface Attribute {
     type: DataType | 'ref';
     params?: DataTypeParams;
     ref?: string;
-    cascadingDelete?: true;
+    onRefDelete?: 'delete' | 'setNull';
     default?: string | number | boolean;
     unique?: boolean;
     notNull?: boolean;

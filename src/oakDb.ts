@@ -223,38 +223,71 @@ export class OakDb extends Warden {
                             checkNotNull.push(attr);
                         }
                     }
-                    if (attributes[attr].cascadingDelete) {
-                        assert(attributes[attr].type === 'ref');
-
-                        const name = `cascade delete for ${entity}(${attr})`;
-                        const { ref } = attributes[attr];
-                        const trigger: Trigger = {
-                            name,
-                            entity: ref as string,
-                            action: 'delete',
-                            fn: async ({ row: data, txn }: {
-                                row?: Row,
-                                txn?: Txn,
-                            }): Promise<number> => {
-                                const triggerRows = await this.find({
-                                    entity,
-                                    query: {
-                                        [`${attr}Id`]: (data as Row).id,
-                                    },
-                                    txn,
+                    if (attributes[attr].onRefDelete) {
+                        switch (attributes[attr].onRefDelete) {
+                            case 'delete': {
+                                this.registerTrigger({
+                                    name: `cascading delete ${entity} on ${attr}`,
+                                    entity: attributes[attr].ref as string,
+                                    action: 'delete',
+                                    fn: async ({ row, txn }, context) => {
+                                        const { id } = row as Row;
+                                        const cascadingRows = await this.find({
+                                            entity,
+                                            query: {
+                                                [`${attr}Id`]: id,
+                                            },
+                                            txn,
+                                            forUpdate: true,
+                                        }, context);
+                                        for (const cascadingRow of cascadingRows) {
+                                            await this.remove({
+                                                entity,
+                                                id: cascadingRow.id,
+                                                row: cascadingRow,
+                                                txn,
+                                            }, context);
+                                        }
+                                        return cascadingRows.length;
+                                    }
                                 });
-                                for (let row2 of triggerRows) {
-                                    await this.remove({
-                                        entity,
-                                        id: row2.id,
-                                        row: row2,
-                                        txn,
-                                    });
-                                }
-                                return triggerRows.length;
-                            },
-                        };
-                        this.registerTrigger(trigger);
+                                break;
+                            }
+                            case 'setNull': {
+                                this.registerTrigger({
+                                    name: `cascading delete ${entity} on ${attr}`,
+                                    entity: attributes[attr].ref as string,
+                                    action: 'delete',
+                                    fn: async ({ row, txn }, context) => {
+                                        const { id } = row as Row;
+                                        const cascadingRows = await this.find({
+                                            entity,
+                                            query: {
+                                                [`${attr}Id`]: id,
+                                            },
+                                            txn,
+                                            forUpdate: true,
+                                        }, context);
+                                        for (const cascadingRow of cascadingRows) {
+                                            await this.update({
+                                                entity,
+                                                id: cascadingRow.id,
+                                                row: cascadingRow,
+                                                data: {
+                                                    [`${attr}Id`]: null,
+                                                },
+                                                txn,
+                                            }, context);
+                                        }
+                                        return cascadingRows.length;
+                                    }
+                                });
+                                break;
+                            }
+                            default: {
+                                assert(false);
+                            }
+                        }
                     }
                 }
                 if (createUuid || uniqueConstraints && uniqueConstraints.length > 0) {
