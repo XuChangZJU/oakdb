@@ -896,47 +896,50 @@ export class OakDb extends Warden {
         }
     }
 
-    /**
-     * @description judge relation of attr to entity
-     * @param entity 
-     * @param attr 
-     * @returns {
-     *      1: many-to-one,
-     *      2: many-to-one(using entity/entityId pointer)
-     *      []: one-to-many(using entity as attribute name)
-     *      {}: one-to-many(using entity/entityId)
-     * }
-     */
-    judgeRelation(entity: string, attr: string, schema?: Schema): any {
-        const schema2 = schema || this.schema;
-        const { attributes } = schema2[entity];
+    judgeRelation(entity: string, attr: string): any {
+        return judgeRelation(entity, attr, this.schema);
+    }
+}
 
-        if (attributes.hasOwnProperty(attr)) {
-            if (attributes[attr].type === 'ref') {
-                return attributes[attr].ref as string;
-            }
-            return 1;
-        }
-        else if (attr.startsWith('$')) {
-            return 1;
-        }
-        else if (attributes.hasOwnProperty('entity') && attributes.hasOwnProperty('entityId')) {
-            // entity指针
-            return 2;       // entity指针的多对一
-        }
-        else {
-            assert(attr.endsWith('s'));
-            const attr2 = attr.slice(0, attr.length - 1);
-            const { attributes: attributes2 } = schema2[attr2];
-            if (attributes2.hasOwnProperty(entity)) {
-                // 此时要求定义的时候一定要按entity名称来定义属性，如果有多个属性映射成外键是不能支持的  by Xc
-                assert(attributes2[entity].type === 'ref');
-                assert(attributes2[entity].ref === entity);
+/**
+ * @description judge relation of attr to entity
+ * @param entity
+ * @param attr
+ * @returns {
+    *      1: many-to-one,
+    *      2: many-to-one(using entity/entityId pointer)
+    *      []: one-to-many(using entity as attribute name)
+    *      {}: one-to-many(using entity/entityId)
+    * }
+    */
+export function judgeRelation(entity: string, attr: string, schema: Schema): any {
+    const { attributes } = schema[entity];
 
-                return [attr2];
-            }
-            assert(attributes2.hasOwnProperty('entity') && attributes2.hasOwnProperty('entityId'));
-            return { $$entity: attr2 };
+    if (attributes.hasOwnProperty(attr)) {
+        if (attributes[attr].type === 'ref') {
+            return attributes[attr].ref as string;
         }
+        return 1;
+    }
+    else if (attr.startsWith('$')) {
+        return 1;
+    }
+    else if (attributes.hasOwnProperty('entity') && attributes.hasOwnProperty('entityId')) {
+        // entity指针
+        return 2;       // entity指针的多对一
+    }
+    else {
+        assert(attr.endsWith('s'));
+        const attr2 = attr.slice(0, attr.length - 1);
+        const { attributes: attributes2 } = schema[attr2];
+        if (attributes2.hasOwnProperty(entity)) {
+            // 此时要求定义的时候一定要按entity名称来定义属性，如果有多个属性映射成外键是不能支持的  by Xc
+            assert(attributes2[entity].type === 'ref');
+            assert(attributes2[entity].ref === entity);
+
+            return [attr2];
+        }
+        assert(attributes2.hasOwnProperty('entity') && attributes2.hasOwnProperty('entityId'));
+        return { $$entity: attr2 };
     }
 }
