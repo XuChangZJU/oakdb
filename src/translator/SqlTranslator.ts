@@ -708,7 +708,7 @@ export abstract class SqlTranslator extends Translator {
         const { schema } = this;
         const { attributes, storageName = entity } = schema[entity];
 
-        let sql = `update ${storageName} ${entity} set`;
+        let sql = `update \`${storageName}\` \`${entity}\` set`;
         const attrs = Object.keys(data);
 
         attrs.forEach(
