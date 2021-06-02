@@ -191,13 +191,12 @@ export abstract class Warden {
             return 1;
         }
     }
-    private async doTrigger({ trigger, txn, row, data, context }: {
+    private async doTrigger({ trigger, txn, row, data }: {
         trigger: Trigger,
         txn?: Txn,
         row?: Row,
         data?: Data;
-        context?: object;
-    }): Promise<any> {
+    }, context?: object): Promise<any> {
         const {
             triggerCondition,
             triggerEntity,
@@ -250,13 +249,12 @@ export abstract class Warden {
         }
     }
 
-    private async doTriggerAgain({ trigger, row, data, txn, context }: {
+    private async doTriggerAgain({ trigger, row, data, txn }: {
         trigger: Trigger,
         row: Row,
         data?: Data,
         txn: Txn,
-        context?: object;
-    }): Promise<any> {
+    }, context?: object): Promise<any> {
         const {
             entity,
             volatile,
@@ -267,8 +265,7 @@ export abstract class Warden {
             row,
             data,
             trigger,
-            context,
-        });
+        }, context);
 
         if (volatile === 'makeSure') {
             const { $$volatileData$$: volatileData } = row;
@@ -290,7 +287,7 @@ export abstract class Warden {
                 data: updateData,
                 row,
                 txn,
-            });
+            }, context);
         }
         return result;
     }
@@ -326,7 +323,7 @@ export abstract class Warden {
                                     row,
                                     data,
                                     txn,
-                                });
+                                }, context);
     
                                 await this.commitTransaction(txn);
                             }
@@ -343,7 +340,7 @@ export abstract class Warden {
                             trigger,
                             row,
                             data,
-                        });
+                        }, context);
                     }
                 }
             );
@@ -387,7 +384,7 @@ export abstract class Warden {
                             for (let vdItem of $$volatileData$$ ) {
                                 const { name, data } = vdItem;
                                 const trigger = this.triggerNameStore.get(name) as Trigger;
-                                await this.doTriggerAgain({ trigger, txn, row: row2, data });
+                                await this.doTriggerAgain({ trigger, txn, row: row2, data }, context);
                             }
                         }
                         this.log(`complete ${rows.length} volatile triggers on ${entity} in the patrol`)

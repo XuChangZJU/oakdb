@@ -294,6 +294,7 @@ export abstract class SqlTranslator extends Translator {
         const args = [$format].concat(attrs);
         result += ` ${util.format.apply(null, args)}`;
         if ($as) {
+            assert($as.startsWith('$'));        // use particular namespace;
             if ($omitPrefix) {
                 result += ` as ${$as}`;
             }
