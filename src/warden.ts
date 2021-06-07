@@ -7,8 +7,9 @@ import { ErrorCode } from './errorCode';
 import { parallel } from './utils';
 import assert from 'assert';
 import { assign, cloneDeep, intersection, remove, values } from 'lodash';
+import { OakDb } from './oakDb';
 
-type Action = 'insert'|'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
+type Action = 'insert' | 'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
 export interface TriggerInput {
     row?: Row,
     data?: Data,
@@ -22,12 +23,12 @@ export interface Trigger {
     entity: string;
     action: Action;
     before?: boolean;
-    valueCheck?: ({row, data}: {row?: Row, data?: Data}) => boolean;
+    valueCheck?: ({ row, data }: { row?: Row, data?: Data }) => boolean;
     attributes?: string | string[];
     fn: (triggerInput: TriggerInput, context?: object) => Promise<any>;
     triggerEntity?: string,
     triggerProjection?: Projection,
-    triggerCondition?: ({row, data, txn}: {row?: Row, data?: Data, txn?: Txn}) => Promise<Query>;
+    triggerCondition?: ({ row, data, txn }: { row?: Row, data?: Data, txn?: Txn }) => Promise<Query>;
     group?: boolean;
     volatile?: 'makeSure' | 'takeEasy';         // 如果是makesure，则会保证事务提交时，trigger至少执行一次（可能会多次），takeEasy则不能保证
 }
@@ -38,7 +39,7 @@ export abstract class Warden {
     private triggerActionStore: Map<string, Trigger[]>;
     private triggerNameStore: Map<string, Trigger>;
     private log: (message: string) => void;
-    
+
     static ActionAlias = {
         'insert': 'insert',
         'create': 'insert',
@@ -82,7 +83,7 @@ export abstract class Warden {
      * @param trigger 
      */
     registerTrigger(trigger: Trigger): void {
-        const { 
+        const {
             name,
             entity,
             action,
@@ -93,7 +94,7 @@ export abstract class Warden {
         const action2 = Warden.ActionAlias[action];
         assert(action2);
         const key = `${entity}-${action2}`;
-        
+
         const { triggerActionStore, triggerNameStore } = this;
         if (triggerActionStore.has(key)) {
             const triggers = triggerActionStore.get(key) as Trigger[];
@@ -114,7 +115,7 @@ export abstract class Warden {
         action: Action,
         data?: Data,
         row?: Row,
-    }): Trigger[]|void {
+    }): Trigger[] | void {
         const action2 = Warden.ActionAlias[action];
         assert(action2);
         const key = `${entity}-${action2}`;
@@ -164,7 +165,7 @@ export abstract class Warden {
         txn?: Txn;
     }, context?: object): Promise<Row>;
 
-    abstract find({ entity, projection, query, indexFrom, count, forUpdate, txn}: {
+    abstract find({ entity, projection, query, indexFrom, count, forUpdate, txn }: {
         entity: string;
         projection?: Projection;
         query?: Query;
@@ -205,7 +206,7 @@ export abstract class Warden {
             group,
             name,
         } = trigger;
-        
+
         const execFn = async (triggerInput: TriggerInput) => {
             const result = await fn(triggerInput, context);
             const count = this.getCount(result);
@@ -214,7 +215,15 @@ export abstract class Warden {
         };
         if (triggerEntity) {
             const query = triggerCondition && await triggerCondition({ row, data, txn });
-            const triggeredRows = await this.find({
+            /**
+             * oakdb类有可能被继承，这里要找到对应的原型链上的结点
+             */
+            let that = this;
+            while (Object.getPrototypeOf(that) !== OakDb.prototype) {
+                that = Object.getPrototypeOf(that);
+            }
+
+            const triggeredRows = await (Object.getPrototypeOf(that) as OakDb).find.call(this, {
                 entity: triggerEntity,
                 projection: triggerProjection,
                 query,
@@ -282,7 +291,14 @@ export abstract class Warden {
                     $$volatileData$$: null,
                 });
             }
-            await this.update({
+             /**
+             * oakdb类有可能被继承，这里要找到对应的原型链上的结点
+             */
+            let that = this;
+            while (Object.getPrototypeOf(that) !== OakDb.prototype) {
+                that = Object.getPrototypeOf(that);
+            }
+            await (Object.getPrototypeOf(that) as OakDb).update.call(this, {
                 entity,
                 data: updateData,
                 row,
@@ -292,17 +308,17 @@ export abstract class Warden {
         return result;
     }
 
-    protected async execTriggers({ triggers, row, data, txn, context }:{
+    protected async execTriggers({ triggers, row, data, txn, context }: {
         triggers: Trigger[];
         row?: Row;
         data?: Data;
         txn?: Txn;
         context?: object;
-    }):Promise<void> {
+    }): Promise<void> {
         if (triggers.length > 0) {
             const promises = triggers.map(
-                (trigger) => async() => {
-                    const { 
+                (trigger) => async () => {
+                    const {
                         triggerCondition,
                         triggerEntity,
                         triggerProjection,
@@ -311,7 +327,7 @@ export abstract class Warden {
                         group,
                         entity,
                     } = trigger;
-    
+
                     if (volatile && txn) {
                         assert(row);
                         // 挂到事务提交时再做
@@ -324,7 +340,7 @@ export abstract class Warden {
                                     data,
                                     txn,
                                 }, context);
-    
+
                                 await this.commitTransaction(txn);
                             }
                             catch (err) {
@@ -344,7 +360,7 @@ export abstract class Warden {
                     }
                 }
             );
-    
+
             await parallel(promises.map(p => p()));
         }
     }
@@ -353,7 +369,7 @@ export abstract class Warden {
      * find the volatile triggers are not done properly, then do them again.
      * @params interval: delay(millisecond) for the volatile triggers will be executed.
      */
-    async patrol(interval: number = 60000, context?: object):Promise<void> {
+    async patrol(interval: number = 60000, context?: object): Promise<void> {
         const entities = [...this.triggerNameStore.values()].filter(
             trigger => trigger.volatile === 'makeSure',
         ).map(
@@ -365,7 +381,14 @@ export abstract class Warden {
             entity => async () => {
                 const txn = await this.startTransaction();
                 try {
-                    const rows = await this.find({
+                    /**
+                     * oakdb类有可能被继承，这里要找到对应的原型链上的结点
+                     */
+                    let that = this;
+                    while (Object.getPrototypeOf(that) !== OakDb.prototype) {
+                        that = Object.getPrototypeOf(that);
+                    }
+                    const rows = await (Object.getPrototypeOf(that) as OakDb).find.call(this, {
                         entity,
                         txn,
                         projection: {
@@ -381,7 +404,7 @@ export abstract class Warden {
                     if (rows.length > 0) {
                         for (let row2 of rows) {
                             const { id, $$volatileData$$ } = row2;
-                            for (let vdItem of $$volatileData$$ ) {
+                            for (let vdItem of $$volatileData$$) {
                                 const { name, data } = vdItem;
                                 const trigger = this.triggerNameStore.get(name) as Trigger;
                                 await this.doTriggerAgain({ trigger, txn, row: row2, data }, context);
@@ -397,6 +420,6 @@ export abstract class Warden {
                 }
             }
         );
-        await parallel(promises.map( p => p() ));
+        await parallel(promises.map(p => p()));
     }
 }
