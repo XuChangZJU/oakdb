@@ -440,39 +440,30 @@ export class OakDb extends Warden {
             $$updateAt$$: now,
         });
 
-        const triggers = this.getTriggers({ entity, action: 'insert', data });
-        if (triggers) {
-            // 处理插入前trigger
-            const beforeTriggers = triggers.filter(
-                ({ before }) => before
-            );
-            if (beforeTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: beforeTriggers,
-                    data,
-                    txn,
-                    context,
-                });
-            }
+        const beforeTriggers = this.getTriggers({ entity, action: 'insert', data, before: true });
+
+        // 处理插入前trigger
+        if (beforeTriggers && beforeTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: beforeTriggers,
+                data,
+                txn,
+                context,
+            });
         }
     }
 
     private async postInsert(entity: string, data: Data, row: Row, txn?: Txn, context?: object) {
-        const triggers = this.getTriggers({ entity, action: 'insert', data });
-        if (triggers) {
-            // 处理插入后trigger
-            const afterTriggers = triggers.filter(
-                ({ before }) => !before
-            );
-            if (afterTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: afterTriggers,
-                    data,
-                    row,
-                    txn,
-                    context,
-                });
-            }
+        const afterTriggers = this.getTriggers({ entity, action: 'insert', data, before: false });
+        
+        if (afterTriggers && afterTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: afterTriggers,
+                data,
+                row,
+                txn,
+                context,
+            });
         }
     }
 
@@ -602,6 +593,28 @@ export class OakDb extends Warden {
                 };
             }
         }
+        const data = {
+            indexFrom,
+            count,
+            projection,
+            query: query2,
+            sort,
+            forUpdate,
+        };
+        const beforeTriggers = this.getTriggers({
+            entity,
+            action: 'select',
+            data,
+            before: false,
+        });
+        if (beforeTriggers && beforeTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: beforeTriggers,
+                data,
+                txn,
+                context,
+            });
+        }
         const rows: Row[] = await this.driver.find({
             entity,
             projection,
@@ -614,20 +627,20 @@ export class OakDb extends Warden {
         });
 
         if (txn) {
-            for (let row of rows) {
-                const triggers = this.getTriggers({
-                    entity,
-                    action: 'select',
-                    row,
+            const afterTriggers = this.getTriggers({
+                entity,
+                action: 'select',
+                rows,
+                before: false,
+            });
+            if (afterTriggers && afterTriggers.length > 0) {
+                await this.execTriggers({
+                    triggers: afterTriggers,
+                    data,
+                    rows,
+                    txn,
+                    context,
                 });
-                if (triggers && triggers.length > 0) {
-                    await this.execTriggers({
-                        triggers,
-                        row,
-                        txn,
-                        context,
-                    });
-                }
             }
         }
         return rows as unknown as T[];
@@ -674,6 +687,26 @@ export class OakDb extends Warden {
         id: string | number;
         txn?: Txn;
     }, context?: object): Promise<Row & T> {
+        const data = {
+            id,
+            projection,
+        };
+
+        const beforeTriggers = this.getTriggers({
+            entity,
+            action: 'select',
+            data,
+            before: true,
+        });
+        if (beforeTriggers && beforeTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: beforeTriggers,
+                data,
+                txn,
+                context,
+            });
+        }
+        
         const [row] = await this.driver.find({
             entity,
             projection,
@@ -684,15 +717,18 @@ export class OakDb extends Warden {
         });
 
         if (txn && row) {
-            const triggers = this.getTriggers({
+            const afterTiggers = this.getTriggers({
                 entity,
                 action: 'select',
                 row,
+                data,
+                before: false,
             });
-            if (triggers && triggers.length > 0) {
+            if (afterTiggers && afterTiggers.length > 0) {
                 await this.execTriggers({
-                    triggers,
+                    triggers: afterTiggers,
                     row,
+                    data,
                     txn,
                     context,
                 });
@@ -707,51 +743,32 @@ export class OakDb extends Warden {
             $$updateAt$$: now,
         });
 
-        let row2: Row | undefined;
+        const row2 = row || await this.findById({ entity, id: id as string | number, txn });
 
-        const possibleTriggers = this.getTriggers({ entity, action: 'update', data, row });
-        if (possibleTriggers) {
-            if (!row) {
-                row2 = await this.findById({ entity, id: id as string | number, txn });
-            }
-            let beforeTriggers = possibleTriggers.filter(
-                ({ before }) => before
-            );
-
-            if (!row) {
-                beforeTriggers = beforeTriggers.filter(
-                    (trigger) => !trigger.valueCheck || trigger.valueCheck({ row: row2, data })
-                );
-            }
-            if (beforeTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: beforeTriggers,
-                    data,
-                    row: row || row2,
-                    txn,
-                    context,
-                });
-            }
+        const beforeTriggers = this.getTriggers({ entity, action: 'update', data, row: row2, before: true });
+        if (beforeTriggers && beforeTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: beforeTriggers,
+                data,
+                row: row || row2,
+                txn,
+                context,
+            });
         }
 
         return row2;
     }
 
     private async postUpdate(entity: string, data: Data, row: Row, txn?: Txn, context?: object): Promise<void> {
-        const Triggers = this.getTriggers({ entity, action: 'update', data, row });
-        if (Triggers) {
-            let afterTriggers = Triggers.filter(
-                ({ before }) => !before
-            );
-            if (afterTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: afterTriggers,
-                    data,
-                    row,
-                    txn,
-                    context,
-                });
-            }
+        const afterTriggers = this.getTriggers({ entity, action: 'update', data, row, before: false });
+        if (afterTriggers && afterTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: afterTriggers,
+                data,
+                row,
+                txn,
+                context,
+            });
         }
     }
 
@@ -772,10 +789,10 @@ export class OakDb extends Warden {
             txn,
         });
 
-        const rowNow = assign({}, row || row2, data);
+        const rowNow = assign({}, row2, data);
         await this.postUpdate(entity, data, rowNow as Row, txn, context);
 
-        return result as T;
+        return rowNow as T;
     }
 
     async updateMany({ entity, data, query, txn }: {
@@ -802,28 +819,15 @@ export class OakDb extends Warden {
             deletePhysically = false;
         }
 
-        let row2: Row | undefined;
-        const possibleTriggers = this.getTriggers({ entity, action: 'remove', row });
-        if (possibleTriggers) {
-            if (!row) {
-                row2 = await this.findById({ entity, id: id as string | number, txn });
-            }
-            let beforeTriggers = possibleTriggers.filter(
-                ({ before }) => before
-            );
-            if (!row) {
-                beforeTriggers = beforeTriggers.filter(
-                    (trigger) => !trigger.valueCheck || trigger.valueCheck({ row: row2 })
-                );
-            }
-            if (beforeTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: beforeTriggers,
-                    row: row || row2,
-                    txn,
-                    context,
-                });
-            }
+        let row2 = row || await this.findById({ entity, id: id as string | number, txn });
+        const beforeTriggers = this.getTriggers({ entity, action: 'remove', row: row2, before: true });                    
+        if (beforeTriggers && beforeTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: beforeTriggers,
+                row: row || row2,
+                txn,
+                context,
+            });
         }
         return {
             deletePhysically,
@@ -832,19 +836,14 @@ export class OakDb extends Warden {
     }
 
     private async postRemove(entity: string, row: Row, txn?: Txn, context?: object): Promise<void> {
-        const Triggers = this.getTriggers({ entity, action: 'remove', row });
-        if (Triggers) {
-            let beforeTriggers = Triggers.filter(
-                ({ before }) => !before
-            );
-            if (beforeTriggers.length > 0) {
-                await this.execTriggers({
-                    triggers: beforeTriggers,
-                    row,
-                    txn,
-                    context,
-                });
-            }
+        const beforeTriggers = this.getTriggers({ entity, action: 'remove', row, before: false });        
+        if (beforeTriggers && beforeTriggers.length > 0) {
+            await this.execTriggers({
+                triggers: beforeTriggers,
+                row,
+                txn,
+                context,
+            });
         }
     }
 
@@ -872,7 +871,7 @@ export class OakDb extends Warden {
 
         await this.postRemove(entity, row2 as Row, txn, context);
 
-        return (row || { id: id as string | number }) as T;
+        return row as T;
     }
 
     async removeMany({ entity, query, txn }: {

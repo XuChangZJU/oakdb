@@ -12,6 +12,7 @@ import { OakDb } from './oakDb';
 type Action = 'insert' | 'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
 export interface TriggerInput {
     row?: Row,
+    rows?: Row[],
     data?: Data,
     txn?: Txn,
     triggeredRow?: Row,
@@ -23,7 +24,7 @@ export interface Trigger {
     entity: string;
     action: Action;
     before?: boolean;
-    valueCheck?: ({ row, data }: { row?: Row, data?: Data }) => boolean;
+    valueCheck?: ({ row, rows, data }: { row?: Row, rows?: Row[], data?: Data }) => boolean;
     attributes?: string | string[];
     fn: (triggerInput: TriggerInput, context?: object) => Promise<any>;
     triggerEntity?: string,
@@ -110,11 +111,13 @@ export abstract class Warden {
         triggerNameStore.set(name, trigger);
     }
 
-    protected getTriggers({ entity, action, data, row }: {
+    protected getTriggers({ entity, action, data, row, rows, before }: {
         entity: string,
         action: Action,
         data?: Data,
         row?: Row,
+        rows?: Row[],
+        before: boolean,
     }): Trigger[] | void {
         const action2 = Warden.ActionAlias[action];
         assert(action2);
@@ -127,7 +130,10 @@ export abstract class Warden {
             const validTriggers = triggers.filter(
                 trigger => {
                     const { valueCheck, name, volatile } = trigger;
-                    const valueCheckResult = !trigger.valueCheck || trigger.valueCheck({ row, data });
+                    if (before !== !!trigger.before) {
+                        return false;
+                    }
+                    const valueCheckResult = !trigger.valueCheck || trigger.valueCheck({ row, rows, data });
                     const attrCheckResult = !trigger.attributes || !data
                         || (trigger.attributes instanceof Array && intersection(trigger.attributes, Object.keys(data)).length > 0)
                         || Object.keys(data).includes(trigger.attributes as string);
@@ -192,10 +198,11 @@ export abstract class Warden {
             return 1;
         }
     }
-    private async doTrigger({ trigger, txn, row, data }: {
+    private async doTrigger({ trigger, txn, row, rows, data }: {
         trigger: Trigger,
         txn?: Txn,
         row?: Row,
+        rows?: Row[],
         data?: Data;
     }, context?: object): Promise<any> {
         const {
@@ -232,6 +239,7 @@ export abstract class Warden {
                 const result = await execFn({
                     txn,
                     row,
+                    rows,
                     data,
                     triggeredRows,
                 });
@@ -242,6 +250,7 @@ export abstract class Warden {
                     async triggeredRow => await execFn({
                         txn,
                         row,
+                        rows,
                         data,
                         triggeredRow,
                     })
@@ -253,14 +262,16 @@ export abstract class Warden {
             return await execFn({
                 txn,
                 row,
+                rows,
                 data,
             });
         }
     }
 
-    private async doTriggerAgain({ trigger, row, data, txn }: {
+    private async doTriggerAgain({ trigger, row, rows, data, txn }: {
         trigger: Trigger,
         row: Row,
+        rows?: Row[],
         data?: Data,
         txn: Txn,
     }, context?: object): Promise<any> {
@@ -272,6 +283,7 @@ export abstract class Warden {
         const result = await this.doTrigger({
             txn,
             row,
+            rows,
             data,
             trigger,
         }, context);
@@ -308,9 +320,10 @@ export abstract class Warden {
         return result;
     }
 
-    protected async execTriggers({ triggers, row, data, txn, context }: {
+    protected async execTriggers({ triggers, row, rows, data, txn, context }: {
         triggers: Trigger[];
         row?: Row;
+        rows?: Row[],
         data?: Data;
         txn?: Txn;
         context?: object;
@@ -337,6 +350,7 @@ export abstract class Warden {
                                 await this.doTriggerAgain({
                                     trigger,
                                     row,
+                                    rows,
                                     data,
                                     txn,
                                 }, context);
@@ -355,6 +369,7 @@ export abstract class Warden {
                             txn,
                             trigger,
                             row,
+                            rows,
                             data,
                         }, context);
                     }

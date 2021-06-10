@@ -6,6 +6,7 @@ import { Schema } from './Schema';
 declare type Action = 'insert' | 'create' | 'update' | 'remove' | 'delete' | 'read' | 'select';
 export interface TriggerInput {
     row?: Row;
+    rows?: Row[];
     data?: Data;
     txn?: Txn;
     triggeredRow?: Row;
@@ -16,8 +17,9 @@ export interface Trigger {
     entity: string;
     action: Action;
     before?: boolean;
-    valueCheck?: ({ row, data }: {
+    valueCheck?: ({ row, rows, data }: {
         row?: Row;
+        rows?: Row[];
         data?: Data;
     }) => boolean;
     attributes?: string | string[];
@@ -52,11 +54,13 @@ export declare abstract class Warden {
      * @param trigger
      */
     registerTrigger(trigger: Trigger): void;
-    protected getTriggers({ entity, action, data, row }: {
+    protected getTriggers({ entity, action, data, row, rows, before }: {
         entity: string;
         action: Action;
         data?: Data;
         row?: Row;
+        rows?: Row[];
+        before: boolean;
     }): Trigger[] | void;
     abstract update({ entity, data, id, row, txn }: {
         entity: string;
@@ -80,9 +84,10 @@ export declare abstract class Warden {
     private getCount;
     private doTrigger;
     private doTriggerAgain;
-    protected execTriggers({ triggers, row, data, txn, context }: {
+    protected execTriggers({ triggers, row, rows, data, txn, context }: {
         triggers: Trigger[];
         row?: Row;
+        rows?: Row[];
         data?: Data;
         txn?: Txn;
         context?: object;
