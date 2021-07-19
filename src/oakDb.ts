@@ -384,14 +384,31 @@ export class OakDb extends Warden {
                                         }
                                     );
                                     const query = assign(pick(row, uc2), pick(data, uc2));
-                                    const count = await this.count({ entity, query, txn });
-                                    if (count > 0) {
-                                        console.log(query);
-                                        throw ErrorCode.createError(ErrorCode.uniqueConstraintViolated, `unique constraint violated on ${uc.join(',')} of entity ${entity} on update`);
+                                    assign(query, {
+                                        id: {
+                                            $ne: row.id,
+                                        },
+                                    });
+                                    const list = await this.find({
+                                        entity,
+                                        query,
+                                        txn,
+                                        projection: {
+                                            id: 1,
+                                        }
+                                    });
+                                    if (list.length > 0) {
+                                        const { id } = list[0];
+                                        throw ErrorCode.createError(
+                                            ErrorCode.uniqueConstraintViolated,
+                                            `unique constraint violated on ${uc.join(',')} of entity ${entity} on insert`,
+                                            {
+                                                id
+                                            }
+                                        );
                                     }
                                     result = result + 1;
                                 }
-
                             }
                             if (checkNotNull.length > 0) {
                                 const nullAttr = checkNotNull.find(
