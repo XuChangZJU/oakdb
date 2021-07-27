@@ -4,7 +4,10 @@ export type ComparisonOperator = '$eq'
     | '$lt'
     | '$lte'
     | '$ne'
-    | '$like';
+    // | '$like';
+    | '$startsWith'
+    | '$endsWith'
+    | '$includes';
 
 
 export type LogicOperator = '$and'
@@ -56,7 +59,9 @@ export const ComparisonOperators: string[] = [
     '$lt',
     '$lte',
     '$ne',
-    '$like',
+    '$startsWith',
+    '$endsWith',
+    '$includes',
 ];
 
 export const ElementOperators: string[] = [

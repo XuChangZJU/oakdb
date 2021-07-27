@@ -43,7 +43,7 @@ export function judgeRelation(entity: string, attr: string, schema: Schema): any
          * }
          */
         const attr3 = attr.split('$')[0];
-        assert(attr3.endsWith('s'));
+        assert(attr3.endsWith('s'), `entity 「${entity}」 has no property 「${attr3}」`);
         const attr2 = attr3.slice(0, attr3.length - 1);
         const { attributes: attributes2 } = schema[attr2];
         if (attributes2.hasOwnProperty(entity)) {

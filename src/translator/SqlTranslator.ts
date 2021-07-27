@@ -316,10 +316,26 @@ export abstract class SqlTranslator extends Translator {
             $lte: '<=',
             $eq: '=',
             $ne: '<>',
-            $like: 'like',
         };
-
-        return ` ${SQL_OP[attr]} ${this.translateAttrValue(type, value)}`;
+        
+        if (Object.keys(SQL_OP).includes(attr)) {
+            return ` ${SQL_OP[attr]} ${this.translateAttrValue(type, value)}`;
+        }
+        
+        switch (attr) {
+            case '$startsWith': {
+                return ` like '${value}%'`;
+            }
+            case '$endsWith': {
+                return ` like '%${value}'`;
+            }
+            case '$includes': {
+                return ` like '%${value}%'`;
+            }
+            default: {
+                throw new Error(`unrecoganized comparison operator ${attr}`);
+            }
+        }
     }
 
     private translateElement(attr: ElementOperator, value: boolean): string {
@@ -538,10 +554,13 @@ export abstract class SqlTranslator extends Translator {
                             case '$xor': {
                                 const logicQueries = query2[attr] as LogicQuery[] | PlainQuery[];
                                 logicQueries.forEach(
-                                    (lg: LogicQuery | PlainQuery, index: number) => {
-                                        whereText += ` (${translateInner(entity2, lg, path)})`;
-                                        if (index < logicQueries.length - 1) {
-                                            whereText += ` ${attr.slice(1)}`;
+                                    (logicQuery: LogicQuery | PlainQuery, index: number) => {
+                                        const sql = translateInner(entity2, logicQuery, path);
+                                        if (sql) {
+                                            whereText += ` (${sql})`;
+                                            if (index < logicQueries.length - 1) {
+                                                whereText += ` ${attr.slice(1)}`;
+                                            }
                                         }
                                     }
                                 );
@@ -549,8 +568,11 @@ export abstract class SqlTranslator extends Translator {
                             }
                             case '$not': {
                                 const logicQuery = query2[attr] as LogicQuery | PlainQuery;
-                                whereText += ` not (${translateInner(entity2, logicQuery, path)})`;
-                                break;
+                                const sql = translateInner(entity2, logicQuery, path);
+                                if (sql) {
+                                    whereText += ` not (${translateInner(entity2, logicQuery, path)})`;
+                                    break;
+                                }
                             }
                             default: {
                                 assert(false);
@@ -668,7 +690,10 @@ export abstract class SqlTranslator extends Translator {
         let sql = `select ${projText} from ${fromText}`;
         
         if (query) {
-            sql += ` where ${this.translateWhere(entity, query, aliasDict)}`;
+            const sqlWhere = this.translateWhere(entity, query, aliasDict);
+            if (sqlWhere) {
+                sql += ` where ${sqlWhere}`;
+            }
         }
         
         if (sort) {
