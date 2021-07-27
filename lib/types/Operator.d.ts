@@ -1,4 +1,4 @@
-export declare type ComparisonOperator = '$eq' | '$gt' | '$gte' | '$lt' | '$lte' | '$ne' | '$like';
+export declare type ComparisonOperator = '$eq' | '$gt' | '$gte' | '$lt' | '$lte' | '$ne' | '$startsWith' | '$endsWith' | '$includes';
 export declare type LogicOperator = '$and' | '$or' | '$not' | '$nor' | '$xor';
 export declare type ElementOperator = '$exists';
 export declare type EvaluationOperator = '$text' | '$expr' | '$in' | '$nin' | '$between';
