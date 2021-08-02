@@ -66,7 +66,7 @@ describe('test select', function() {
                 data: {
                     location: {
                         type: 'Point',
-                        coordinates: [120, 30],
+                        coordinates: [120.1212, 30.22445],
                     },
                     name: '楼外楼',
                     data: {

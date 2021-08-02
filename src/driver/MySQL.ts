@@ -19,7 +19,7 @@ import { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 function convertGeoTextToObject(geoText: string): object {
     if (geoText.startsWith('POINT')) {
-        const coord = geoText.match((/\d+(?=\)|\s)/g)) as string[];
+        const coord = geoText.match((/(\d|\.)+(?=\)|\s)/g)) as string[];
 
         return {
             type: 'Point',

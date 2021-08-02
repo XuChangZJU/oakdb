@@ -19,7 +19,7 @@ export abstract class SqlTranslator extends Translator {
         
         let sql;
         if (view) {
-            sql = `drop view \`${storageName}\``;
+            sql = `drop view if exists \`${storageName}\``;
         }
         else {
             sql = truncate ? `truncate table \`${storageName}\``: `drop table if exists \`${storageName}\``;
