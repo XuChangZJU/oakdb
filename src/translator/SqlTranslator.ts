@@ -13,16 +13,16 @@ import { ErrorCode } from '../errorCode';
 import { GroupBy } from '../types/GroupBy';
 
 export abstract class SqlTranslator extends Translator {
-    translateDestroyEntity(entity: string, truncate?: boolean):string {
+    translateDestroyEntity(entity: string, truncate?: boolean): string {
         const { schema } = this;
         const { storageName = entity, view } = schema[entity];
-        
+
         let sql;
         if (view) {
             sql = `drop view if exists \`${storageName}\``;
         }
         else {
-            sql = truncate ? `truncate table \`${storageName}\``: `drop table if exists \`${storageName}\``;
+            sql = truncate ? `truncate table \`${storageName}\`` : `drop table if exists \`${storageName}\``;
         }
 
         return sql;
@@ -30,7 +30,7 @@ export abstract class SqlTranslator extends Translator {
 
     abstract translateAttrProjection(dataType: DataType, alias: string, attr: string): string;
 
-    abstract translateAttrValue(dataType: DataType, value: Value | Data ): string;
+    abstract translateAttrValue(dataType: DataType, value: Value | Data): string;
 
     abstract translateFullTextSearch(value: FullTextSearchQuery, entity: string, alias: string): string;
 
@@ -41,7 +41,7 @@ export abstract class SqlTranslator extends Translator {
     translateInsertRow(entity: string, data: Data[]): string {
         const { schema } = this;
         const { attributes, storageName = entity } = schema[entity];
-        
+
         let sql = `insert into \`${storageName}\`(`;
 
         const attrs = Object.keys(data[0]);
@@ -80,7 +80,7 @@ export abstract class SqlTranslator extends Translator {
         return sql;
     }
 
-    private formalizeProjection(entity: string, projection?: Projection, noExpand?:boolean): Projection {        
+    private formalizeProjection(entity: string, projection?: Projection, noExpand?: boolean): Projection {
         const projection2: Projection = projection || {};
         const { schema } = this;
 
@@ -91,7 +91,7 @@ export abstract class SqlTranslator extends Translator {
                 if (!attr.match(/\$\$[\d|\D]+\$\$$/)) {     // omit metadata by default
                     const { type } = attributes[attr];
                     if (type === 'ref') {
-                        if (!noExpand &&( !projection || projection[attr] || projection.hasOwnProperty('$all'))) {
+                        if (!noExpand && (!projection || projection[attr] || projection.hasOwnProperty('$all'))) {
                             const { ref } = attributes[attr];
                             const projection3 = this.formalizeProjection(ref as string, projection && (projection[attr] as Projection), true);
                             assign(projection2, {
@@ -134,7 +134,7 @@ export abstract class SqlTranslator extends Translator {
             const { storageName } = schema[entity];
             return storageName || entity;
         };
-        const alias = `${entity}_${count ++}`;
+        const alias = `${entity}_${count++}`;
         let from = ` \`${getStorageName(entity)}\` \`${alias}\` `;
         const aliasDict: {
             [propName: string]: string,
@@ -158,7 +158,7 @@ export abstract class SqlTranslator extends Translator {
                                 path,
                                 entityName,
                                 alias,
-                             })
+                            })
                         );
                     }
                     else if (attributes[op] && attributes[op].type === 'ref') {
@@ -180,7 +180,7 @@ export abstract class SqlTranslator extends Translator {
                             path: pathAttr,
                             entityName: ref as string,
                             alias: alias2,
-                         });
+                        });
                     }
                 }
             )
@@ -267,7 +267,7 @@ export abstract class SqlTranslator extends Translator {
                             path: pathAttr,
                             entityName: ref as string,
                             alias: alias2,
-                         });
+                        });
                     }
                 }
             );
@@ -290,7 +290,7 @@ export abstract class SqlTranslator extends Translator {
             (ele) => {
                 return ` \`${alias}\`.\`${ele}\``;
             }
-        ): [];
+        ) : [];
         const args = [$format].concat(attrs);
         result += ` ${util.format.apply(null, args)}`;
         if ($as) {
@@ -317,11 +317,11 @@ export abstract class SqlTranslator extends Translator {
             $eq: '=',
             $ne: '<>',
         };
-        
+
         if (Object.keys(SQL_OP).includes(attr)) {
             return ` ${SQL_OP[attr]} ${this.translateAttrValue(type, value)}`;
         }
-        
+
         switch (attr) {
             case '$startsWith': {
                 return ` like '${value}%'`;
@@ -346,8 +346,8 @@ export abstract class SqlTranslator extends Translator {
         return ' is null';
     }
 
-    private translateEvaluation(attr: EvaluationOperator ,value: any, entity: string, alias: string, type: DataType): string {
-        switch(attr) {
+    private translateEvaluation(attr: EvaluationOperator, value: any, entity: string, alias: string, type: DataType): string {
+        switch (attr) {
             case '$text': {
                 // fulltext search
                 return this.translateFullTextSearch(value as FullTextSearchQuery, entity, alias);
@@ -405,7 +405,7 @@ export abstract class SqlTranslator extends Translator {
     private checkSortWithProjection(entity: string, projection: Projection, sort: Sort) {
         const merged = {};
         sort.forEach(
-            ({ $attr }) => merge(merged, $attr)            
+            ({ $attr }) => merge(merged, $attr)
         );
         const { schema } = this;
 
@@ -415,18 +415,29 @@ export abstract class SqlTranslator extends Translator {
             attrs.forEach(
                 (attr) => {
                     if (attr.toLocaleLowerCase().startsWith('$fncall')) {
-                        return;
+                        const { $attrs } = sortNode[attr] as FnCall;
+                        if ($attrs) {
+                            $attrs.forEach(
+                                ele => {
+                                    if (!projectionNode.hasOwnProperty(ele)) {
+                                        throw ErrorCode.createError(ErrorCode.sortAttrUnexisted, `sort attribute ${path}/${ele} unexisted in projection`, {
+                                            path,
+                                            attr: ele,
+                                        });
+                                    }
+                                });
+                        }
                     }
-                    if (attributes.hasOwnProperty(attr)) {
-                        /* if (!projectionNode.hasOwnProperty(attr)) {
+                    else if (attributes.hasOwnProperty(attr)) {
+                        if (!projectionNode.hasOwnProperty(attr)) {
                             throw ErrorCode.createError(ErrorCode.sortAttrUnexisted, `sort attribute ${path}/${attr} unexisted in projection`, {
                                 path,
                                 attr,
                             });
-                        } */
+                        }
                         if (attributes[attr].type === 'ref') {
                             checkInProjection(sortNode[attr] as SortAttr, projectionNode[attr] as Projection, attributes[attr].ref as string, `${path}${attr}/`);
-                        }                        
+                        }
                     }
                     else {
                         // there must exist one homonymous 'as' in function call.
@@ -478,7 +489,7 @@ export abstract class SqlTranslator extends Translator {
                         if (type === 'ref') {
                             projText += translateInner(ref as string, projection2[attr] as Projection, `${path}${attr}/`);
                         }
-                        else if (projection2[attr] === 1){
+                        else if (projection2[attr] === 1) {
                             projText += ` ${this.translateAttrProjection(type, alias, attr)} as \`${prefix}${attr}\``;
                         }
                         else {
@@ -507,7 +518,7 @@ export abstract class SqlTranslator extends Translator {
         [propName: string]: string;
     }): string {
         const { schema } = this;
-        
+
         const translateInner = (entity2: string, groupBy2: GroupBy, path: string): string => {
             const alias = aliasDict[path];
             const { attributes } = schema[entity2];
@@ -516,13 +527,13 @@ export abstract class SqlTranslator extends Translator {
             Object.keys(groupBy2).forEach(
                 (attr, idx) => {
                     const { type, ref } = attributes[attr];
-                        if (type === 'ref') {
-                            groupByText += translateInner(ref as string, groupBy2[attr] as GroupBy, `${path}${attr}/`);
-                        }
-                        else {
-                            assert (groupBy2[attr] === 1);
-                            groupByText += ` \`${alias}\`.\`${attr}\``;
-                        }
+                    if (type === 'ref') {
+                        groupByText += translateInner(ref as string, groupBy2[attr] as GroupBy, `${path}${attr}/`);
+                    }
+                    else {
+                        assert(groupBy2[attr] === 1);
+                        groupByText += ` \`${alias}\`.\`${attr}\``;
+                    }
                     if (idx < Object.keys(groupBy2).length - 1) {
                         groupByText += ',';
                     }
@@ -548,7 +559,7 @@ export abstract class SqlTranslator extends Translator {
                 (attr, idx) => {
                     if (LogicOperators.includes(attr)) {
                         let result = '';
-                        switch(attr as LogicOperator) {
+                        switch (attr as LogicOperator) {
                             case '$and':
                             case '$or':
                             case '$xor': {
@@ -578,7 +589,7 @@ export abstract class SqlTranslator extends Translator {
                                 assert(false);
                                 return '';
                             }
-                        }                        
+                        }
                     }
                     else if (attr.toLowerCase().startsWith('$fncall')) {
                         // functionCall
@@ -597,12 +608,12 @@ export abstract class SqlTranslator extends Translator {
                         throw new Error('暂不支持的算子');
                     }
                     else {
-                        assert (attributes.hasOwnProperty(attr));
+                        assert(attributes.hasOwnProperty(attr));
                         const { type: type2, ref } = attributes[attr];
                         if (type2 === 'ref') {
                             whereText += ` ${translateInner(ref as string, query2[attr] as Query, `${path}${ref}/`)}`;
                         }
-                        else if (typeof query2[attr] === 'object' && Object.keys(query2[attr])[0] && Object.keys(query2[attr])[0].startsWith('$')){
+                        else if (typeof query2[attr] === 'object' && Object.keys(query2[attr])[0] && Object.keys(query2[attr])[0].startsWith('$')) {
                             whereText += ` \`${alias}\`.\`${attr}\` ${translateInner(entity2, query2[attr] as PlainQuery, path, type2)}`
                         }
                         else {
@@ -611,7 +622,7 @@ export abstract class SqlTranslator extends Translator {
                     }
 
                     if (idx < Object.keys(query2).length - 1) {
-                        whereText +=' and'
+                        whereText += ' and'
                     }
                 }
             );
@@ -626,22 +637,25 @@ export abstract class SqlTranslator extends Translator {
         [propName: string]: string;
     }): string {
         const { schema } = this;
-        const translateInner = (entity2: string, sortAttr: SortAttr, path: string): string => {
+        const translateInner = (entity2: string, sortAttr: SortAttr, path: string, prefix?: string): string => {
             const attr = Object.keys(sortAttr)[0];
             const alias = aliasDict[path];
             const { attributes } = schema[entity2];
-            let prefix = path.slice(2).replace(/\//g, '.');
 
             if (attr.toLocaleLowerCase().startsWith('$fncall')) {
-                return this.translateFnCall(sortAttr[attr] as FnCall, alias, prefix);
+                return this.translateFnCall(sortAttr[attr] as FnCall, alias, path.slice(2).replace(/\//g, '.'));
             }
             else if (sortAttr[attr] === 1) {
-                return ` \`${alias}\`.\`${attr}\``;
+                if (prefix) {
+                    return `\`${prefix}\`.\`${attr}\``;
+                }
+                return `\`${attr}\``;
             }
             else {
                 const { ref, type } = attributes[attr];
                 assert(type === 'ref');
-                return translateInner(ref as string, sortAttr[attr] as SortAttr, `${path}${attr}/`);
+                const prefix2 = prefix ? `${prefix}.${attr}` : attr;
+                return translateInner(ref as string, sortAttr[attr] as SortAttr, `${path}${attr}/`, prefix2);
             }
         };
 
@@ -674,7 +688,7 @@ export abstract class SqlTranslator extends Translator {
         groupBy?: GroupBy;
     }): TranslateResult {
         const projection2 = this.formalizeProjection(entity, projection);
-        if (sort){
+        if (sort) {
             this.checkSortWithProjection(entity, projection2, sort);
         }
 
@@ -688,14 +702,14 @@ export abstract class SqlTranslator extends Translator {
         const projText = this.translateProjection(entity, projection2, aliasDict);
 
         let sql = `select ${projText} from ${fromText}`;
-        
+
         if (query) {
             const sqlWhere = this.translateWhere(entity, query, aliasDict);
             if (sqlWhere) {
                 sql += ` where ${sqlWhere}`;
             }
         }
-        
+
         if (sort) {
             const sortText = this.translateSort(entity, sort, aliasDict);
             if (sortText) {
@@ -751,7 +765,7 @@ export abstract class SqlTranslator extends Translator {
         if (id) {
             sql += ` where id = ${id}`;
         }
-        else if (query){
+        else if (query) {
             const whereText = this.translateWhere(entity, query, {
                 './': entity,
             });
@@ -765,7 +779,7 @@ export abstract class SqlTranslator extends Translator {
         entity: string;
         id?: string | number;
         query?: Query;
-    }) : TranslateResult {
+    }): TranslateResult {
         const { schema } = this;
         const { attributes, storageName = entity } = schema[entity];
 
