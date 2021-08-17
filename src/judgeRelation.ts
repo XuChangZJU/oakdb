@@ -53,7 +53,7 @@ export function judgeRelation(entity: string, attr: string, schema: Schema): any
 
             return [attr2];
         }
-        assert(attributes2.hasOwnProperty('entity') && attributes2.hasOwnProperty('entityId'));
+        assert(attributes2.hasOwnProperty('entity') && attributes2.hasOwnProperty('entityId'), `entity 「${entity}」 has no property 「${attr3}」`);
         return { $$entity: attr2 };
     }
 }
